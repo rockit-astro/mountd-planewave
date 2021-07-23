@@ -1,0 +1,164 @@
+#!/usr/bin/env python3.6
+#
+# This file is part of lmountd.
+#
+# lmountd is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# lmountd is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with lmountd.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Daemon for controlling a Planewave L mount through its http interface via Pyro"""
+
+import argparse
+import threading
+from astropy.coordinates import SkyCoord, EarthLocation, get_moon, get_sun
+from astropy.time import Time
+import astropy.units as u
+import requests
+import Pyro4
+
+from warwick.observatory.lmount import Config, MountState
+
+# Set automatically when generating RPM package
+SOFTWARE_VERSION = "UNKNOWN"
+
+
+class MountDaemon:
+    """Daemon interface for talon subsystems"""
+    def __init__(self, config):
+        self._config = config
+
+        # PWI doesn't force the mount to be homed between powering on and operation.
+        # Force this requirement through the daemon instead.
+        # TODO: Actually track this
+        self._is_homed = True
+
+        # Only one command may be active at a time (except for stop)
+        self._command_lock = threading.Lock()
+
+    def _fetch_status(self):
+        """
+        Query the current status from PWI4.
+        Returns a dictionary or None on failure
+        """
+        try:
+            uri = 'http://{}:{}/status'.format(self._config.pwi_host, self._config.pwi_port)
+            response = requests.get(uri, timeout=self._config.pwi_timeout)
+            response.raise_for_status()
+
+            lines = response.text.split("\n")
+            status = {}
+            for line in lines:
+                fields = line.split("=", 1)
+                if len(fields) == 2:
+                    status[fields[0]] = fields[1]
+            return status
+        except Exception:
+            return None
+
+    def _parse_mountstate(self, status):
+        """Determine the current MountState value based on the PWI status dictionary and other state"""
+        if status['mount.is_connected'] != 'true':
+            return MountState.Disabled
+
+        # Simplify the external API we expose by also treating unpowered axes as disabled
+        if status['mount.axis0.is_enabled'] != 'true' or status['mount.axis1.is_enabled'] != 'true':
+            return MountState.Disabled
+
+        if status['mount.is_slewing'] == 'true':
+            return MountState.Slewing
+
+        if status['mount.is_tracking'] == 'true':
+            return MountState.Tracking
+
+        return MountState.Stopped
+
+    @Pyro4.expose
+    def report_status(self):
+        """Returns a dictionary containing the current telescope state"""
+
+        status = self._fetch_status()
+        if status is None:
+            return {
+                'date': Time.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                'state': MountState.Disabled,
+                'state_label': MountState.label(MountState.Disabled),
+                'software_version': SOFTWARE_VERSION,
+            }
+
+        # There is a small amount of latency between the axis times and the status request
+        # Assume that the RA axis is the most representative time for the calculated data
+        location = EarthLocation(
+            lat=status['site.latitude_degs'],
+            lon=status['site.longitude_degs'],
+            height=status['site.height_meters'])
+
+        state = self._parse_mountstate(status)
+
+        # Prefer the mount timestamp if we have it - this was when the coordinates were calculated
+        # If the mount is not connected we can safely fall back to the request timestamp
+        if state == MountState.Disabled:
+            timestamp = status['response.timestamp_utc']
+        else:
+            timestamp = status['mount.timestamp_utc']
+
+        date = Time(Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f'), location=location)
+        data = {
+            'date': date.strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+            'state': state,
+            'state_label': MountState.label(state),
+            'software_version': SOFTWARE_VERSION,
+            'pwi_version': status['pwi4.version'],
+            'site_latitude': location.lat.to_value(u.deg),
+            'site_longitude': location.lon.to_value(u.deg),
+            'site_elevation': location.height.to_value(u.m),
+        }
+
+        if state != MountState.Disabled:
+            lst = u.Quantity(status['site.lmst_hours'], unit=u.hourangle)
+
+            data.update({
+                'lst': lst.to_value(u.deg),
+                'axes_homed': self._is_homed
+            })
+
+            if state >= MountState.Stopped:
+                pointing = SkyCoord(
+                    ra=status['mount.ra_j2000_hours'],
+                    dec=status['mount.dec_j2000_degs'],
+                    unit=(u.hourangle, u.deg),
+                    frame='icrs')
+
+                data.update({
+                    'ra': pointing.ra.to_value(u.deg),
+                    'dec': pointing.dec.to_value(u.deg),
+                    'offset_ra': 0,
+                    'offset_dec': 0,
+
+                    # Note: this field depends on a custom patched version of pwi4
+                    'ha': u.Quantity(status['mount.ha_hours'], unit=u.hourangle).to_value(u.deg),
+
+                    'alt': u.Quantity(status['mount.altitude_degs'], unit=u.deg).to_value(u.deg),
+                    'az': u.Quantity(status['mount.azimuth_degs'], unit=u.deg).to_value(u.deg),
+
+                    'moon_separation': get_moon(date).separation(pointing).to_value(u.deg),
+                    'sun_separation': get_sun(date).separation(pointing).to_value(u.deg),
+                })
+
+        return data
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Telescope Server')
+    parser.add_argument('config', help='Path to configuration json file')
+    args = parser.parse_args()
+    c = Config(args.config)
+    c.daemon.launch(MountDaemon(c))

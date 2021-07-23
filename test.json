@@ -1,0 +1,8 @@
+{
+  "daemon": "localhost_test",
+  "log_name": "lmountd@test",
+  "control_machines": ["LocalHost"],
+  "pwi_host": "localhost",
+  "pwi_port": 8220,
+  "pwi_timeout": 0.5
+}

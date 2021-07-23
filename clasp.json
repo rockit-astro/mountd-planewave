@@ -1,0 +1,8 @@
+{
+  "daemon": "clasp_telescope",
+  "log_name": "lmountd@clasp",
+  "control_machines": ["CLASPTCS"],
+  "pwi_host": "localhost",
+  "pwi_port": 8220,
+  "pwi_timeout": 0.5
+}

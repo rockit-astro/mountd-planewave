@@ -1,0 +1,158 @@
+#!/usr/bin/env python3.6
+#
+# This file is part of lmountd.
+#
+# lmountd is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# lmountd is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with lmountd.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Commandline client for managing the telescope"""
+
+import glob
+import os
+import sys
+import Pyro4
+from astropy.coordinates import Angle, SkyCoord
+import astropy.units as u
+from warwick.observatory.lmount import CommandStatus, MountState, Config
+from warwick.observatory.common import TFmt
+
+SCRIPT_NAME = os.path.basename(sys.argv[0])
+
+sys.excepthook = Pyro4.util.excepthook
+
+
+def run_command(command, args):
+    """Runs a daemon command, handling cancellation and error messages"""
+    if 'LMOUNTD_CONFIG_PATH' in os.environ:
+        config = Config(os.environ['LMOUNTD_CONFIG_PATH'])
+    else:
+        # Load the config file defined in the LMOUNTD_CONFIG_PATH environment variable or from the
+        # default system location (/etc/lmountd/). Exit with an error if zero or multiple are found.
+        files = glob.glob("/etc/lmountd/*.json")
+        if len(files) != 1:
+            print('error: failed to guess the default config file. ' +
+                  'Run as LMOUNTD_CONFIG_PATH=/path/to/config.json tel <command> [<args>]')
+            return 1
+
+        config = Config(files[0])
+
+    try:
+        ret = command(config, args)
+    except KeyboardInterrupt:
+        # ctrl-c terminates the running command
+        # pylint: disable=comparison-with-callable
+        if command != status:
+            ret = stop(config, args)
+        # pylint: enable=comparison-with-callable
+
+        # Report successful stop
+        if ret == 0:
+            ret = -100
+    except Pyro4.errors.CommunicationError:
+        ret = -101
+
+    # Print message associated with error codes, except for -1 (error handled locally)
+    if ret not in (0, -1):
+        print(CommandStatus.message(ret))
+    return ret
+
+
+def status(config, _):
+    """Reports the current mount status"""
+    with config.daemon.connect() as daemon:
+        data = daemon.report_status()
+
+    if data is None:
+        return 1
+
+    print('   Telescope is {}'.format(MountState.label(data['state'], formatting=True)))
+
+    # Telescope is disabled
+    if data['state'] == MountState.Disabled:
+        return 0
+
+    if data['axes_homed']:
+        coords = SkyCoord(ra=data['ra'], dec=data['dec'], unit=u.deg)
+        ra_desc = coords.ra.to(u.hourangle).to_string(sep=':', precision=2)
+        dec_desc = coords.dec.to(u.deg).to_string(sep=':', precision=2)
+
+        altaz = SkyCoord(alt=data['alt'], az=data['az'], unit=u.deg, frame='altaz')
+        alt_desc = altaz.alt.to(u.deg).to_string(sep=':', precision=2)
+        az_desc = altaz.az.to_string(sep=':', precision=2)
+
+        ra_offset_desc = ''
+        ra_offset = Angle(data['offset_ra'], unit=u.deg).to(u.hourangle)
+        if ra_offset != 0:
+            ra_offset_desc = ' with offset ' + TFmt.Bold + ra_offset.to_string(sep=':', precision=2) + TFmt.Clear
+
+        dec_offset_desc = ''
+        dec_offset = Angle(data['offset_dec'], unit=u.deg)
+        if dec_offset != 0:
+            dec_offset_desc = ' with offset ' + TFmt.Bold + dec_offset.to_string(sep=':', precision=2) + TFmt.Clear
+
+        moon_desc = TFmt.Bold + '{:.0f}\u00B0'.format(data['moon_separation']) + TFmt.Clear
+        sun_desc = TFmt.Bold + '{:.0f}\u00B0'.format(data['sun_separation']) + TFmt.Clear
+
+        print('   RA is ' + TFmt.Bold + ra_desc + TFmt.Clear + ra_offset_desc)
+        print('   Dec is ' + TFmt.Bold + dec_desc + TFmt.Clear + dec_offset_desc)
+        print('   Altitude is ' + TFmt.Bold + alt_desc + TFmt.Clear)
+        print('   Azimuth is ' + TFmt.Bold + az_desc + TFmt.Clear)
+        print('   Moon separation is ' + moon_desc)
+        print('   Sun separation is ' + sun_desc)
+    else:
+        print('   Axes are ' + TFmt.Bold + TFmt.Red + 'NOT HOMED' + TFmt.Clear)
+
+    lst_desc = Angle(data['lst'], unit=u.deg).to(u.hourangle).to_string(sep=':', precision=2)
+    print('   Local sidereal time is ' + TFmt.Bold + lst_desc + TFmt.Clear)
+
+    return 0
+
+
+def stop(config, _):
+    """Stops any active mount movement"""
+    with config.daemon.connect() as daemon:
+        return daemon.stop()
+
+
+def ping_daemon(config):
+    """Check that the daemon is alive before calling a long-timeout method"""
+    with config.daemon.connect(timeout=config.ping_timeout) as daemon:
+        daemon.ping()
+
+
+def print_usage():
+    """Prints the utility help"""
+    print('usage: {} <command> [<args>]'.format(SCRIPT_NAME))
+    print()
+    print('general commands:')
+    print('   status    print a human-readable summary of the telescope status')
+    print()
+    print('observing commands:')
+    print('   stop      immediately stop any mount movement')
+    print()
+    print('engineering commands:')
+    print()
+
+    return 0
+
+
+if __name__ == '__main__':
+    commands = {
+        'status': status,
+        'stop': stop,
+    }
+
+    if len(sys.argv) >= 2 and sys.argv[1] in commands:
+        sys.exit(run_command(commands[sys.argv[1]], sys.argv[2:]))
+
+    sys.exit(print_usage())
