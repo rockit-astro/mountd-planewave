@@ -67,6 +67,77 @@ def run_command(command, args):
     return ret
 
 
+def park(config, args):
+    """Slews the telescope to a named park position"""
+    if len(args) == 1:
+        if args[0] not in config.park_positions:
+            print('error: unknown park position \'' + args[0] + '\'')
+            return -1
+
+        ping_daemon(config)
+        with config.daemon.connect() as daemon:
+            pos = config.park_positions.get(args[0])
+            return daemon.slew_altaz(pos['alt'], pos['az'])
+
+    print('usage: {} park <position>'.format(SCRIPT_NAME))
+    print()
+    for p in config.park_positions:
+        print('   {:6s}    {}'.format(p, config.park_positions[p]['desc']))
+    print()
+    return -1
+
+
+def slew(config, args):
+    """Slews the telescope to a specified J2000 RA,Dec position"""
+    if len(args) != 2:
+        print('usage: {} slew <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
+
+    try:
+        coord = SkyCoord(ra=args[0], dec=args[1], unit=(u.hourangle, u.deg))
+    except ValueError as e:
+        print('error: ' + str(e))
+        return -1
+
+    ping_daemon(config)
+    with config.daemon.connect(timeout=0) as daemon:
+        return daemon.slew_radec(coord.ra.to_value(u.deg), coord.dec.to_value(u.deg))
+
+
+def horizon(config, args):
+    """Slews the telescope to a specified Alt,Az position"""
+    if len(args) != 2:
+        print('usage: {} horizon <DD:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
+
+    try:
+        coord = SkyCoord(alt=args[0], az=args[1], unit=u.deg, frame='altaz')
+    except ValueError as e:
+        print('error: ' + str(e))
+        return -1
+
+    ping_daemon(config)
+    with config.daemon.connect(timeout=0) as daemon:
+        return daemon.slew_altaz(coord.alt.to_value(u.deg), coord.az.to_value(u.deg))
+
+
+def track(config, args):
+    """Slews the telescope to a specified J2000 RA,Dec position and begins tracking"""
+    if len(args) != 2:
+        print('usage: {} track <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
+
+    try:
+        coord = SkyCoord(ra=args[0], dec=args[1], unit=(u.hourangle, u.deg))
+    except ValueError as e:
+        print('error: ' + str(e))
+        return -1
+
+    ping_daemon(config)
+    with config.daemon.connect(timeout=0) as daemon:
+        return daemon.track_radec(coord.ra.to_value(u.deg), coord.dec.to_value(u.deg))
+
+
 def home(config, _):
     """Find the mount home position"""
     ping_daemon(config)
@@ -143,6 +214,12 @@ def shutdown(config, _):
         return daemon.shutdown()
 
 
+def list_parks(config, _):
+    """List available park positions for bash command completion"""
+    print(' '.join(sorted(config.park_positions.keys())))
+    return 0
+
+
 def ping_daemon(config):
     """Check that the daemon is alive before calling a long-timeout method"""
     with config.daemon.connect() as daemon:
@@ -155,8 +232,12 @@ def print_usage():
     print()
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
+    print('   park      park the telescope in a named position')
     print()
     print('observing commands:')
+    print('   slew      slew the telescope to a given J2000 RA, Dec')
+    print('   horizon   slew the telescope to a given Alt, Az')
+    print('   track     slew the telescope to a given J2000 RA, Dec and track the target')
     print('   stop      immediately stop any mount movement')
     print()
     print('engineering commands:')
@@ -170,11 +251,16 @@ def print_usage():
 
 if __name__ == '__main__':
     commands = {
+        'park': park,
+        'slew': slew,
+        'horizon': horizon,
+        'track': track,
         'status': status,
         'home': home,
         'stop': stop,
         'init': initialize,
-        'kill': shutdown
+        'kill': shutdown,
+        'list-parks': list_parks
     }
 
     if len(sys.argv) >= 2 and sys.argv[1] in commands:

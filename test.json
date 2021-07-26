@@ -4,5 +4,16 @@
   "control_machines": ["LocalHost"],
   "pwi_host": "localhost",
   "pwi_port": 8220,
-  "pwi_timeout": 0.5
+  "pwi_timeout": 0.5,
+  "slew_poll_interval": 0.5,
+  "slew_timeout": 60,
+  "ha_soft_limits": [-90, 90],
+  "dec_soft_limits": [-45, 90],
+  "park_positions": {
+    "stow": {
+      "desc": "general purpose park position",
+      "alt": 35,
+      "az": 180
+    }
+  }
 }

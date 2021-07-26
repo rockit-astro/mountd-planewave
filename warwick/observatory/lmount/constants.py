@@ -35,6 +35,9 @@ class CommandStatus:
     MountNotStopped = 12
     MountNotDisabled = 14
 
+    OutsideHALimits = 20
+    OutsideDecLimits = 21
+
     _messages = {
         # General error codes
         1: 'error: command failed',
@@ -47,6 +50,9 @@ class CommandStatus:
         11: 'error: mount has not been homed',
         12: 'error: mount is not stopped',
         14: 'error: mount has already been initialized',
+
+        20: 'error: requested coordinates outside HA limits',
+        21: 'error: requested coordinates outside Dec limits',
 
         # tel specific codes
         -100: 'error: terminated by user',

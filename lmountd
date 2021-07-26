@@ -19,7 +19,7 @@
 
 import argparse
 import threading
-from astropy.coordinates import SkyCoord, EarthLocation, get_moon, get_sun
+from astropy.coordinates import AltAz, FK5, SkyCoord, EarthLocation, get_moon, get_sun
 from astropy.time import Time
 import astropy.units as u
 import requests
@@ -34,7 +34,7 @@ SOFTWARE_VERSION = "UNKNOWN"
 
 
 def _parse_mountstate(status):
-    """Determine the current MountState value based on the PWI status dictionary and other state"""
+    """Parse a MountState value from the PWI status dictionary"""
     if status['mount.is_connected'] != 'true':
         return MountState.Disabled
 
@@ -51,6 +51,14 @@ def _parse_mountstate(status):
     return MountState.Stopped
 
 
+def _parse_location(status):
+    """Parse an astropy EarthLocation value from the PWI status dictionary"""
+    return EarthLocation(
+        lat=status['site.latitude_degs'],
+        lon=status['site.longitude_degs'],
+        height=status['site.height_meters'])
+
+
 class MountDaemon:
     """Daemon interface for talon subsystems"""
     def __init__(self, config):
@@ -58,7 +66,15 @@ class MountDaemon:
 
         # PWI doesn't force the mount to be homed between powering on and operation.
         # Force this requirement through the daemon instead.
-        self._is_homed = False
+        self._axes_homed = False
+
+        self._ha_positive_limit = self._config.ha_soft_limits[1] * u.deg
+        self._ha_negative_limit = self._config.ha_soft_limits[0] * u.deg
+        self._dec_positive_limit = self._config.dec_soft_limits[1] * u.deg
+        self._dec_negative_limit = self._config.dec_soft_limits[0] * u.deg
+
+        self._pointing_condition = threading.Condition()
+        self._force_stopped = False
 
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
@@ -83,6 +99,65 @@ class MountDaemon:
         except Exception:
             return None
 
+    def _validate_pointing(self, coords, log_failed_prefix):
+        """
+        Check whether the given coordinate is within our soft HA and Dec limits.
+        Returns CommandStatus.Succeeded if valid, otherwise logs and returns the appropriate error status
+        """
+        icrs = coords.icrs
+        lst = Time(coords.obstime, location=coords.location).sidereal_time('apparent')
+        ha = (lst - icrs.ra).wrap_at(12 * u.hourangle)
+        dec = icrs.dec
+
+        if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+            log.error(self._config.log_name, log_failed_prefix + '; ha {} outside limit ({}, {})'.format(
+                ha, self._ha_negative_limit, self._ha_positive_limit))
+            return CommandStatus.OutsideHALimits
+
+        if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+            log.error(self._config.log_name, log_failed_prefix + '; dec {} outside limit ({}, {})'.format(
+                dec, self._dec_negative_limit, self._dec_positive_limit))
+            return CommandStatus.OutsideDecLimits
+        return CommandStatus.Succeeded
+
+    def _point(self, command, expected_state, **kwargs):
+        """
+        Send a mount/goto_* command and wait for slewing to complete.
+        Returns True on success or logs and returns False on error
+        """
+        with self._pointing_condition:
+            if self._request_with_status(command, **kwargs) is None:
+                log.error(self._config.log_name, 'Pointing failed: failed to issue ' + command)
+
+            start = Time.now()
+            while True:
+                if self._force_stopped:
+                    break
+
+                status = self._request_with_status('status')
+                state = _parse_mountstate(status)
+                if state != MountState.Slewing or (Time.now() - start).to_value(u.s) > self._config.slew_timeout:
+                    break
+
+                self._pointing_condition.wait(self._config.slew_poll_interval)
+
+        if self._force_stopped:
+            log.error(self._config.log_name, 'Pointing failed: aborted')
+            return False
+
+        if state == expected_state:
+            return True
+
+        self._request_with_status('mount/stop')
+
+        if state == MountState.Slewing:
+            log.error(self._config.log_name, 'Pointing failed: timed out')
+        else:
+            log.error(self._config.log_name, 'Pointing failed: completed with {} instead of {}'.format(
+                MountState.label(state), MountState.label(expected_state)))
+
+        return False
+
     @Pyro4.expose
     def report_status(self):
         """Returns a dictionary containing the current telescope state"""
@@ -96,14 +171,8 @@ class MountDaemon:
                 'software_version': SOFTWARE_VERSION,
             }
 
-        # There is a small amount of latency between the axis times and the status request
-        # Assume that the RA axis is the most representative time for the calculated data
-        location = EarthLocation(
-            lat=status['site.latitude_degs'],
-            lon=status['site.longitude_degs'],
-            height=status['site.height_meters'])
-
         state = _parse_mountstate(status)
+        location = _parse_location(status)
 
         # Prefer the mount timestamp if we have it - this was when the coordinates were calculated
         # If the mount is not connected we can safely fall back to the request timestamp
@@ -129,7 +198,7 @@ class MountDaemon:
 
             data.update({
                 'lst': lst.to_value(u.deg),
-                'axes_homed': self._is_homed
+                'axes_homed': self._axes_homed
             })
 
             if state >= MountState.Stopped:
@@ -175,29 +244,15 @@ class MountDaemon:
             if state != MountState.Stopped:
                 return CommandStatus.MountNotStopped
 
+            # TODO: Test what happens if we stop during homing
             log.info(self._config.log_name, 'Homing axes')
-            if self._request_with_status('mount/find_home') is None:
+            if not self._point('mount/find_home', MountState.Stopped):
                 log.error(self._config.log_name, 'Failed to issue home command')
-                return CommandStatus.Failed
-
-            # Wait for up to 1 minute for the mount to stop slewing
-            # TODO: What happens if we issue a stop while homing?
-            for _ in range(60):
-                status = self._request_with_status('status')
-                state = _parse_mountstate(status)
-                if state != MountState.Slewing:
-                    break
-
-            # TODO: How do we know if this succeeded?
-            # TODO: Investigate what happens with the real hardware!
-            if state == MountState.Slewing:
-                log.error(self._config.log_name, 'Homing failed')
-                self._request_with_status('mount/stop')
                 return CommandStatus.Failed
 
             log.info(self._config.log_name, 'Homing complete')
 
-            self._is_homed = True
+            self._axes_homed = True
             return CommandStatus.Succeeded
 
     @Pyro4.expose
@@ -227,7 +282,7 @@ class MountDaemon:
                 log.error(self._config.log_name, 'Failed to enable motor power')
                 return CommandStatus.Failed
 
-            self._is_homed = False
+            self._axes_homed = False
 
             # Double check that things are now how we expect
             status = self._request_with_status('status')
@@ -260,6 +315,166 @@ class MountDaemon:
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def stop(self):
+        """Stops any active telescope movement"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with self._pointing_condition:
+            self._force_stopped = True
+
+            status = self._request_with_status('mount/stop')
+            state = _parse_mountstate(status)
+            if state == MountState.Disabled:
+                return CommandStatus.MountNotInitialized
+
+            self._pointing_condition.notify_all()
+
+        # Block until any other pointing commands have terminated before cleaning up
+        with self._command_lock:
+            self._force_stopped = False
+
+        return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def slew_altaz(self, alt_deg, az_deg):
+        """Moves the telescope to a specified alt, az"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state != MountState.Stopped:
+                return CommandStatus.MountNotStopped
+
+            # Check against telescope limits
+            location = _parse_location(status)
+            coords = SkyCoord(alt=alt_deg, az=az_deg, unit=u.deg, frame='altaz',
+                              location=location, obstime=Time.now())
+
+            valid_status = self._validate_pointing(coords, 'failed to move to alt {} az {}'.format(alt_deg, az_deg))
+            if valid_status != CommandStatus.Succeeded:
+                return valid_status
+
+            success = self._point('mount/goto_alt_az', MountState.Stopped, alt_degs=alt_deg, az_degs=az_deg)
+            return CommandStatus.Succeeded if success else CommandStatus.Failed
+
+    @Pyro4.expose
+    def slew_hadec(self, ha_deg, dec_deg):
+        """Moves the telescope to a specified apparent ha, dec"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state != MountState.Stopped:
+                return CommandStatus.MountNotStopped
+
+            # Convert apparent HA, Dec to Alt, Az for pointing
+            now = Time.now()
+            location = _parse_location(status)
+            coords = SkyCoord(
+                ra=Time(now, location=location).sidereal_time('apparent') - ha_deg * u.deg,
+                dec=dec_deg * u.deg,
+                frame=FK5(equinox=now),
+                obstime=now).transform_to(AltAz(obstime=now, location=location))
+
+            # Check against telescope limits
+            valid_status = self._validate_pointing(coords, 'failed to move to ha {} dec {}'.format(ha_deg, dec_deg))
+            if valid_status != CommandStatus.Succeeded:
+                return valid_status
+
+            success = self._point('mount/goto_alt_az', MountState.Stopped,
+                                  alt_degs=coords.alt.to_value(u.deg),
+                                  az_degs=coords.az.to_value(u.deg))
+            return CommandStatus.Succeeded if success else CommandStatus.Failed
+
+    @Pyro4.expose
+    def slew_radec(self, ra_deg, dec_deg):
+        """Moves the telescope to a specified J2000 ra, dec"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state != MountState.Stopped:
+                return CommandStatus.MountNotStopped
+
+            # Convert apparent RA, Dec to Alt, Az for pointing
+            now = Time.now()
+            location = _parse_location(status)
+            coords = SkyCoord(
+                ra=ra_deg * u.deg,
+                dec=dec_deg * u.deg,
+                frame='icrs').transform_to(AltAz(obstime=now, location=location))
+
+            # Check against telescope limits
+            valid_status = self._validate_pointing(coords, 'failed to move to ra {} dec {}'.format(ra_deg, dec_deg))
+            if valid_status != CommandStatus.Succeeded:
+                return valid_status
+
+            success = self._point('mount/goto_alt_az', MountState.Stopped,
+                                  alt_degs=coords.alt.to_value(u.deg),
+                                  az_degs=coords.az.to_value(u.deg))
+            return CommandStatus.Succeeded if success else CommandStatus.Failed
+
+    @Pyro4.expose
+    def track_radec(self, ra_deg, dec_deg):
+        """Moves the telescope to a specified J2000 ra, dec and track at the sidereal rate"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state != MountState.Stopped:
+                return CommandStatus.MountNotStopped
+
+            location = _parse_location(status)
+            coords = SkyCoord(
+                ra=ra_deg * u.deg,
+                dec=dec_deg * u.deg,
+                frame='icrs',
+                obstime=Time(Time.now(), location=location))
+
+            # Check against telescope limits
+            valid_status = self._validate_pointing(coords, 'failed to move to ra {} dec {}'.format(ra_deg, dec_deg))
+            if valid_status != CommandStatus.Succeeded:
+                return valid_status
+
+            success = self._point('mount/goto_ra_dec_j2000', MountState.Tracking,
+                                  ra_hours=coords.ra.to_value(u.hourangle),
+                                  dec_degs=coords.dec.to_value(u.deg))
+            return CommandStatus.Succeeded if success else CommandStatus.Failed
 
     # pylint: disable=no-self-use
     @Pyro4.expose

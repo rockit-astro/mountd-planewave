@@ -19,7 +19,18 @@ A configuration file is specified when launching the server, and the `lmount` fr
   "control_machines": ["CLASPTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `warwick.observatory.common.IP`.
   "pwi_host": "localhost", # Host name of the PWI4 server. This should generally stay as localhost.
   "pwi_port": 8220, # Port of the PWI server.
-  "pwi_timeout": 0.5 # Communication timeout with the PWI server (in seconds).
+  "pwi_timeout": 0.5, # Communication timeout with the PWI server (in seconds).
+  "slew_poll_interval": 0.5, # Interval to poll the mount for slew completion (in seconds)
+  "slew_timeout": 60, # Maximum time to slew from any position to any other position (in seconds)
+  "ha_soft_limits": [-90, 90], # Allowed hour angle range in degrees
+  "dec_soft_limits": [-45, 90], # Allowed declination range in degrees
+  "park_positions": {
+    "stow": { # Positions that can be used with 'tel park'.
+      "desc": "general purpose park position", # Description reported by 'tel park'.
+      "alt": 35, # Altitude in degrees.
+      "az": 180 # Azimuth in degrees.
+    }
+  }
 }
 ```
 

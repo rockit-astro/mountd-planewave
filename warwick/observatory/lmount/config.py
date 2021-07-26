@@ -23,7 +23,8 @@ CONFIG_SCHEMA = {
     'type': 'object',
     'additionalProperties': False,
     'required': [
-        'daemon', 'log_name', 'control_machines', 'pwi_host', 'pwi_port', 'pwi_timeout'
+        'daemon', 'log_name', 'control_machines', 'pwi_host', 'pwi_port', 'pwi_timeout',
+        'slew_timeout', 'slew_poll_interval', 'ha_soft_limits', 'dec_soft_limits', 'park_positions'
     ],
     'properties': {
         'daemon': {
@@ -41,13 +42,65 @@ CONFIG_SCHEMA = {
             }
         },
         'pwi_host': {
-            'type': 'string',
+            'type': 'string'
         },
         'pwi_port': {
-            'type': 'integer',
+            'type': 'integer'
         },
         'pwi_timeout': {
             'type': 'number',
+            'minimum': 0
+        },
+        'slew_timeout': {
+            'type': 'number',
+            'minimum': 0
+        },
+        'slew_poll_interval': {
+            'type': 'number',
+            'minimum': 0
+        },
+        'ha_soft_limits': {
+            'type': 'array',
+            'maxItems': 2,
+            'minItems': 2,
+            'items': {
+                'type': 'number',
+                'min': -180,
+                'max': 180
+            }
+        },
+        'dec_soft_limits': {
+            'type': 'array',
+            'maxItems': 2,
+            'minItems': 2,
+            'items': {
+                'type': 'number',
+                'min': -90,
+                'max': 90
+            }
+        },
+        'park_positions': {
+            'type': 'object',
+            'additionalProperties': {
+                'type': 'object',
+                'additionalProperties': False,
+                'required': ['desc', 'alt', 'az'],
+                'properties': {
+                    'desc': {
+                        'type': 'string',
+                    },
+                    'alt': {
+                        'type': 'number',
+                        'min': 0,
+                        'max': 90
+                    },
+                    'az': {
+                        'type': 'number',
+                        'min': 0,
+                        'max': 360
+                    }
+                }
+            }
         }
     }
 }
@@ -72,3 +125,8 @@ class Config:
         self.pwi_host = config_json['pwi_host']
         self.pwi_port = config_json['pwi_port']
         self.pwi_timeout = config_json['pwi_timeout']
+        self.slew_timeout = config_json['slew_timeout']
+        self.slew_poll_interval = config_json['slew_poll_interval']
+        self.ha_soft_limits = config_json['ha_soft_limits']
+        self.dec_soft_limits = config_json['dec_soft_limits']
+        self.park_positions = config_json['park_positions']
