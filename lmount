@@ -67,6 +67,13 @@ def run_command(command, args):
     return ret
 
 
+def home(config, _):
+    """Find the mount home position"""
+    ping_daemon(config)
+    with config.daemon.connect(timeout=0) as daemon:
+        return daemon.find_homes()
+
+
 def status(config, _):
     """Reports the current mount status"""
     with config.daemon.connect() as daemon:
@@ -124,9 +131,21 @@ def stop(config, _):
         return daemon.stop()
 
 
+def initialize(config, _):
+    """Connect to mount and enable motor power"""
+    with config.daemon.connect() as daemon:
+        return daemon.initialize()
+
+
+def shutdown(config, _):
+    """Disable motor power and disconnect from mount"""
+    with config.daemon.connect() as daemon:
+        return daemon.shutdown()
+
+
 def ping_daemon(config):
     """Check that the daemon is alive before calling a long-timeout method"""
-    with config.daemon.connect(timeout=config.ping_timeout) as daemon:
+    with config.daemon.connect() as daemon:
         daemon.ping()
 
 
@@ -141,6 +160,9 @@ def print_usage():
     print('   stop      immediately stop any mount movement')
     print()
     print('engineering commands:')
+    print('   init      connect to mount and enable motor power')
+    print('   home      find the mount home position')
+    print('   kill      disable motor power and disconnect from mount')
     print()
 
     return 0
@@ -149,7 +171,10 @@ def print_usage():
 if __name__ == '__main__':
     commands = {
         'status': status,
+        'home': home,
         'stop': stop,
+        'init': initialize,
+        'kill': shutdown
     }
 
     if len(sys.argv) >= 2 and sys.argv[1] in commands:

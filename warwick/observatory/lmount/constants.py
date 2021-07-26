@@ -28,11 +28,25 @@ class CommandStatus:
 
     InvalidControlIP = 5
 
+    # Command-specific codes
+    MountControlNotRunning = 9
+    MountNotInitialized = 10
+    MountNotHomed = 11
+    MountNotStopped = 12
+    MountNotDisabled = 14
+
     _messages = {
         # General error codes
         1: 'error: command failed',
         2: 'error: another command is already running',
         5: 'error: command not accepted from this IP',
+
+        # Command-specific codes
+        9: 'error: PWI4 software is not running',
+        10: 'error: mount has not been initialized',
+        11: 'error: mount has not been homed',
+        12: 'error: mount is not stopped',
+        14: 'error: mount has already been initialized',
 
         # tel specific codes
         -100: 'error: terminated by user',

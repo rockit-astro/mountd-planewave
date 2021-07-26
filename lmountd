@@ -25,10 +25,30 @@ import astropy.units as u
 import requests
 import Pyro4
 
-from warwick.observatory.lmount import Config, MountState
+from warwick.observatory.common import log, TryLock
+from warwick.observatory.common.helpers import pyro_client_matches
+from warwick.observatory.lmount import CommandStatus, Config, MountState
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = "UNKNOWN"
+
+
+def _parse_mountstate(status):
+    """Determine the current MountState value based on the PWI status dictionary and other state"""
+    if status['mount.is_connected'] != 'true':
+        return MountState.Disabled
+
+    # Simplify the external API we expose by also treating unpowered axes as disabled
+    if status['mount.axis0.is_enabled'] != 'true' or status['mount.axis1.is_enabled'] != 'true':
+        return MountState.Disabled
+
+    if status['mount.is_slewing'] == 'true':
+        return MountState.Slewing
+
+    if status['mount.is_tracking'] == 'true':
+        return MountState.Tracking
+
+    return MountState.Stopped
 
 
 class MountDaemon:
@@ -38,25 +58,24 @@ class MountDaemon:
 
         # PWI doesn't force the mount to be homed between powering on and operation.
         # Force this requirement through the daemon instead.
-        # TODO: Actually track this
-        self._is_homed = True
+        self._is_homed = False
 
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
 
-    def _fetch_status(self):
+    def _request_with_status(self, command, **kwargs):
         """
-        Query the current status from PWI4.
-        Returns a dictionary or None on failure
+        Send a command to PWI4 and return its status response
+        Returns None if the command failed or a dictionary of the mount status
         """
         try:
-            uri = 'http://{}:{}/status'.format(self._config.pwi_host, self._config.pwi_port)
-            response = requests.get(uri, timeout=self._config.pwi_timeout)
+            url = 'http://{}:{}/{}'.format(self._config.pwi_host, self._config.pwi_port, command)
+            response = requests.get(url, timeout=self._config.pwi_timeout, params=kwargs)
             response.raise_for_status()
 
-            lines = response.text.split("\n")
+            data = response.text.split("\n")
             status = {}
-            for line in lines:
+            for line in data:
                 fields = line.split("=", 1)
                 if len(fields) == 2:
                     status[fields[0]] = fields[1]
@@ -64,28 +83,11 @@ class MountDaemon:
         except Exception:
             return None
 
-    def _parse_mountstate(self, status):
-        """Determine the current MountState value based on the PWI status dictionary and other state"""
-        if status['mount.is_connected'] != 'true':
-            return MountState.Disabled
-
-        # Simplify the external API we expose by also treating unpowered axes as disabled
-        if status['mount.axis0.is_enabled'] != 'true' or status['mount.axis1.is_enabled'] != 'true':
-            return MountState.Disabled
-
-        if status['mount.is_slewing'] == 'true':
-            return MountState.Slewing
-
-        if status['mount.is_tracking'] == 'true':
-            return MountState.Tracking
-
-        return MountState.Stopped
-
     @Pyro4.expose
     def report_status(self):
         """Returns a dictionary containing the current telescope state"""
 
-        status = self._fetch_status()
+        status = self._request_with_status('status')
         if status is None:
             return {
                 'date': Time.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
@@ -101,7 +103,7 @@ class MountDaemon:
             lon=status['site.longitude_degs'],
             height=status['site.height_meters'])
 
-        state = self._parse_mountstate(status)
+        state = _parse_mountstate(status)
 
         # Prefer the mount timestamp if we have it - this was when the coordinates were calculated
         # If the mount is not connected we can safely fall back to the request timestamp
@@ -154,6 +156,117 @@ class MountDaemon:
                 })
 
         return data
+
+    @Pyro4.expose
+    def find_homes(self):
+        """Finds the mount home positions"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Disabled:
+                return CommandStatus.MountNotInitialized
+
+            if state != MountState.Stopped:
+                return CommandStatus.MountNotStopped
+
+            log.info(self._config.log_name, 'Homing axes')
+            if self._request_with_status('mount/find_home') is None:
+                log.error(self._config.log_name, 'Failed to issue home command')
+                return CommandStatus.Failed
+
+            # Wait for up to 1 minute for the mount to stop slewing
+            # TODO: What happens if we issue a stop while homing?
+            for _ in range(60):
+                status = self._request_with_status('status')
+                state = _parse_mountstate(status)
+                if state != MountState.Slewing:
+                    break
+
+            # TODO: How do we know if this succeeded?
+            # TODO: Investigate what happens with the real hardware!
+            if state == MountState.Slewing:
+                log.error(self._config.log_name, 'Homing failed')
+                self._request_with_status('mount/stop')
+                return CommandStatus.Failed
+
+            log.info(self._config.log_name, 'Homing complete')
+
+            self._is_homed = True
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def initialize(self):
+        """Connect to mount and enable motor power"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            status = self._request_with_status('status')
+            if status is None:
+                return CommandStatus.MountControlNotRunning
+
+            state = _parse_mountstate(status)
+            if state != MountState.Disabled:
+                return CommandStatus.MountNotDisabled
+
+            if self._request_with_status('mount/connect') is None:
+                log.error(self._config.log_name, 'Failed to connect to mount')
+                return CommandStatus.Failed
+
+            # TODO: This may happen automatically on connect, check with the real hardware!
+            if self._request_with_status('mount/enable', axis=-1) is None:
+                log.error(self._config.log_name, 'Failed to enable motor power')
+                return CommandStatus.Failed
+
+            self._is_homed = False
+
+            # Double check that things are now how we expect
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+
+            return CommandStatus.Failed if state == MountState.Disabled else CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def shutdown(self):
+        """Disables motor power and disconnects from mount"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Disabled:
+                return CommandStatus.MountNotInitialized
+
+            # TODO: This may happen automatically on disconnect, check with the real hardware!
+            if self._request_with_status('mount/disable', axis=-1) is None:
+                log.error(self._config.log_name, 'Failed to disable motor power')
+                return CommandStatus.Failed
+
+            if self._request_with_status('mount/disconnect') is None:
+                log.error(self._config.log_name, 'Failed to disconnect from mount')
+                return CommandStatus.Failed
+
+            return CommandStatus.Succeeded
+
+    # pylint: disable=no-self-use
+    @Pyro4.expose
+    def ping(self):
+        """Returns immediately with a success status"""
+        return CommandStatus.Succeeded
+    # pylint: enable=no-self-use
 
 
 if __name__ == '__main__':
