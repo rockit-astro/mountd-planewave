@@ -19,7 +19,7 @@
 
 import argparse
 import threading
-from astropy.coordinates import AltAz, FK5, SkyCoord, EarthLocation, get_moon, get_sun
+from astropy.coordinates import AltAz, FK5, ICRS, SkyCoord, EarthLocation, get_moon, get_sun
 from astropy.time import Time
 import astropy.units as u
 import requests
@@ -474,6 +474,64 @@ class MountDaemon:
             success = self._point('mount/goto_ra_dec_j2000', MountState.Tracking,
                                   ra_hours=coords.ra.to_value(u.hourangle),
                                   dec_degs=coords.dec.to_value(u.deg))
+            return CommandStatus.Succeeded if success else CommandStatus.Failed
+
+    @Pyro4.expose
+    def offset_radec(self, ra_delta_deg, dec_delta_deg):
+        """Offsets the telescope relative to the current position"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            location = _parse_location(status)
+            now = Time(Time.now(), location=location)
+
+            if state == MountState.Tracking:
+                coords = SkyCoord(
+                    ra=u.Quantity(status['mount.ra_j2000_hours'], unit=u.hourangle) + ra_delta_deg * u.deg,
+                    dec=u.Quantity(status['mount.dec_j2000_degs'], unit=u.deg) + dec_delta_deg * u.deg,
+                    frame='icrs',
+                    obstime=now)
+
+                # Check against telescope limits
+                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg, dec_delta_deg))
+                if valid_status != CommandStatus.Succeeded:
+                    return valid_status
+
+                success = self._point('mount/offset', state,
+                                      ra_add_arcsec=3600 * ra_delta_deg,
+                                      dec_add_arcsec=3600 * dec_delta_deg)
+            else:
+                # The mount/offset command only works when the mount is tracking,
+                # so issue a mount/goto_alt_az command instead
+                coords = SkyCoord(
+                    alt=status['mount.altitude_degs'],
+                    az=status['mount.azimuth_degs'],
+                    unit=u.deg,
+                    frame='altaz',
+                    obstime=now,
+                    location=location).transform_to(ICRS)
+                coords = SkyCoord(
+                    ra=coords.ra + ra_delta_deg * u.deg,
+                    dec=coords.dec + dec_delta_deg * u.deg,
+                    frame='icrs').transform_to(AltAz(obstime=now, location=location))
+
+                # Check against telescope limits
+                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg, dec_delta_deg))
+                if valid_status != CommandStatus.Succeeded:
+                    return valid_status
+
+                success = self._point('mount/goto_alt_az', MountState.Stopped,
+                                      alt_degs=coords.alt.to_value(u.deg),
+                                      az_degs=coords.az.to_value(u.deg))
             return CommandStatus.Succeeded if success else CommandStatus.Failed
 
     # pylint: disable=no-self-use

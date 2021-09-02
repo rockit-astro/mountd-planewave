@@ -121,6 +121,29 @@ def horizon(config, args):
         return daemon.slew_altaz(coord.alt.to_value(u.deg), coord.az.to_value(u.deg))
 
 
+def offset(config, args):
+    """Offsets the telescope by a specified delta RA,Dec"""
+    if len(args) != 2:
+        print('usage: {} offset <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
+
+    try:
+        offset_ra = Angle(args[0], unit=u.hourangle)
+    except ValueError:
+        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
+        return -1
+
+    try:
+        offset_dec = Angle(args[1], unit=u.deg)
+    except ValueError:
+        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        return -1
+
+    ping_daemon(config)
+    with config.daemon.connect(timeout=0) as daemon:
+        return daemon.offset_radec(offset_ra.to_value(u.deg), offset_dec.to_value(u.deg))
+
+
 def track(config, args):
     """Slews the telescope to a specified J2000 RA,Dec position and begins tracking"""
     if len(args) != 2:
@@ -238,6 +261,7 @@ def print_usage():
     print('   slew      slew the telescope to a given J2000 RA, Dec')
     print('   horizon   slew the telescope to a given Alt, Az')
     print('   track     slew the telescope to a given J2000 RA, Dec and track the target')
+    print('   offset    offset the telescope by a given RA, Dec')
     print('   stop      immediately stop any mount movement')
     print()
     print('engineering commands:')
@@ -255,6 +279,7 @@ if __name__ == '__main__':
         'slew': slew,
         'horizon': horizon,
         'track': track,
+        'offset': offset,
         'status': status,
         'home': home,
         'stop': stop,
