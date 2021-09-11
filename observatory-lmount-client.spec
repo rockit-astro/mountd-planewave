@@ -1,5 +1,5 @@
 Name:      observatory-lmount-client
-Version:   20210902
+Version:   20210911
 Release:   0
 Url:       https://github.com/warwick-one-metre/lmountd
 Summary:   L mount client
