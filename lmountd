@@ -67,6 +67,7 @@ class MountDaemon:
         # PWI doesn't force the mount to be homed between powering on and operation.
         # Force this requirement through the daemon instead.
         self._axes_homed = False
+        self._axes_homing = False
 
         self._ha_positive_limit = self._config.ha_soft_limits[1] * u.deg
         self._ha_negative_limit = self._config.ha_soft_limits[0] * u.deg
@@ -181,6 +182,10 @@ class MountDaemon:
         else:
             timestamp = status['mount.timestamp_utc']
 
+        # Work around PWI4 reporting mount.is_slewing=false when finding home
+        if self._axes_homing:
+            state = MountState.Slewing
+
         date = Time(Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f'), location=location)
         data = {
             'date': date.strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
@@ -244,16 +249,54 @@ class MountDaemon:
             if state != MountState.Stopped:
                 return CommandStatus.MountNotStopped
 
-            # TODO: Test what happens if we stop during homing
             log.info(self._config.log_name, 'Homing axes')
-            if not self._point('mount/find_home', MountState.Stopped):
-                log.error(self._config.log_name, 'Failed to issue home command')
-                return CommandStatus.Failed
+            try:
+                self._axes_homed = False
+                self._axes_homing = True
 
-            log.info(self._config.log_name, 'Homing complete')
+                # NOTE: this will return immediately because PWI4 reports
+                # mount.is_slewing=false while finding homes
+                if not self._point('mount/find_home', MountState.Stopped):
+                    log.error(self._config.log_name, 'Failed to issue home command')
+                    return CommandStatus.Failed
 
-            self._axes_homed = True
-            return CommandStatus.Succeeded
+                # Instead wait until the position has converged
+                with self._pointing_condition:
+                    start = Time.now()
+                    status = self._request_with_status('status')
+                    last_coord = SkyCoord(
+                        alt=status['mount.altitude_degs'],
+                        az=status['mount.azimuth_degs'],
+                        unit=u.deg,
+                        frame='altaz')
+
+                    while True:
+                        self._pointing_condition.wait(self._config.slew_poll_interval)
+                        if self._force_stopped or (Time.now() - start).to_value(u.s) > self._config.slew_timeout:
+                            break
+
+                        status = self._request_with_status('status')
+                        coord = SkyCoord(
+                            alt=status['mount.altitude_degs'],
+                            az=status['mount.azimuth_degs'],
+                            unit=u.deg,
+                            frame='altaz')
+
+                        if coord.separation(last_coord) < 0.1 * u.deg:
+                            self._axes_homed = True
+                            break
+
+                        last_coord = coord
+
+                    if not self._axes_homed:
+                        self._request_with_status('mount/stop')
+                        log.error(self._config.log_name, 'Homing failed')
+                        return CommandStatus.Failed
+
+                    log.info(self._config.log_name, 'Homing complete')
+                    return CommandStatus.Succeeded
+            finally:
+                self._axes_homing = False
 
     @Pyro4.expose
     def initialize(self):
