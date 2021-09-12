@@ -1,5 +1,5 @@
 Name:      clasp-lmount-server
-Version:   20210911
+Version:   20210912
 Release:   0
 Url:       https://github.com/warwick-one-metre/lmountd
 Summary:   Mount daemon for the CLASP telescope.
@@ -15,10 +15,12 @@ Requires:  pwi4
 %build
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_unitdir}
+mkdir -p %{buildroot}%{_udevrulesdir}
 mkdir -p %{buildroot}%{_sysconfdir}/lmountd/
 
 %{__install} %{_sourcedir}/lmountd %{buildroot}%{_bindir}
 %{__install} %{_sourcedir}/lmountd@.service %{buildroot}%{_unitdir}
+%{__install} %{_sourcedir}/10-clasp-mount.rules %{buildroot}%{_udevrulesdir}
 %{__install} %{_sourcedir}/clasp.json %{buildroot}%{_sysconfdir}/lmountd/
 
 %files
@@ -26,6 +28,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/lmountd/
 %{_bindir}/lmountd
 %defattr(0644,root,root,-)
 %{_unitdir}/lmountd@.service
+%{_udevrulesdir}/10-clasp-mount.rules
 %{_sysconfdir}/lmountd/clasp.json
 
 %changelog
