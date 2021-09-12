@@ -19,6 +19,7 @@
 
 import argparse
 import threading
+import time
 from astropy.coordinates import AltAz, FK5, ICRS, SkyCoord, EarthLocation, get_moon, get_sun
 from astropy.time import Time
 import astropy.units as u
@@ -316,18 +317,21 @@ class MountDaemon:
             if state != MountState.Disabled:
                 return CommandStatus.MountNotDisabled
 
+            # Simplify the model that we expose to other code by considering the
+            # mount to be disabled if motor power is disabled. This ensures that
+            # we can correctly keep track of whether we are homed or not.
             if self._request_with_status('mount/connect') is None:
                 log.error(self._config.log_name, 'Failed to connect to mount')
                 return CommandStatus.Failed
 
-            # TODO: This may happen automatically on connect, check with the real hardware!
             if self._request_with_status('mount/enable', axis=-1) is None:
                 log.error(self._config.log_name, 'Failed to enable motor power')
                 return CommandStatus.Failed
 
             self._axes_homed = False
 
-            # Double check that things are now how we expect
+            # Wait a second for the mount to respond before double checking that things are how we expect
+            time.sleep(1)
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
 
@@ -348,7 +352,6 @@ class MountDaemon:
             if state == MountState.Disabled:
                 return CommandStatus.MountNotInitialized
 
-            # TODO: This may happen automatically on disconnect, check with the real hardware!
             if self._request_with_status('mount/disable', axis=-1) is None:
                 log.error(self._config.log_name, 'Failed to disable motor power')
                 return CommandStatus.Failed
