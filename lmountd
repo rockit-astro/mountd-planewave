@@ -247,9 +247,6 @@ class MountDaemon:
             if state == MountState.Disabled:
                 return CommandStatus.MountNotInitialized
 
-            if state != MountState.Stopped:
-                return CommandStatus.MountNotStopped
-
             log.info(self._config.log_name, 'Homing axes')
             try:
                 self._axes_homed = False
@@ -397,12 +394,8 @@ class MountDaemon:
             if not self._axes_homed:
                 return CommandStatus.MountNotHomed
 
-            status = self._request_with_status('status')
-            state = _parse_mountstate(status)
-            if state != MountState.Stopped:
-                return CommandStatus.MountNotStopped
-
             # Check against telescope limits
+            status = self._request_with_status('status')
             location = _parse_location(status)
             coords = SkyCoord(alt=alt_deg, az=az_deg, unit=u.deg, frame='altaz',
                               location=location, obstime=Time.now())
@@ -427,13 +420,9 @@ class MountDaemon:
             if not self._axes_homed:
                 return CommandStatus.MountNotHomed
 
-            status = self._request_with_status('status')
-            state = _parse_mountstate(status)
-            if state != MountState.Stopped:
-                return CommandStatus.MountNotStopped
-
             # Convert apparent HA, Dec to Alt, Az for pointing
             now = Time.now()
+            status = self._request_with_status('status')
             location = _parse_location(status)
             coords = SkyCoord(
                 ra=Time(now, location=location).sidereal_time('apparent') - ha_deg * u.deg,
@@ -464,13 +453,9 @@ class MountDaemon:
             if not self._axes_homed:
                 return CommandStatus.MountNotHomed
 
-            status = self._request_with_status('status')
-            state = _parse_mountstate(status)
-            if state != MountState.Stopped:
-                return CommandStatus.MountNotStopped
-
             # Convert apparent RA, Dec to Alt, Az for pointing
             now = Time.now()
+            status = self._request_with_status('status')
             location = _parse_location(status)
             coords = SkyCoord(
                 ra=ra_deg * u.deg,
@@ -501,10 +486,6 @@ class MountDaemon:
                 return CommandStatus.MountNotHomed
 
             status = self._request_with_status('status')
-            state = _parse_mountstate(status)
-            if state != MountState.Stopped:
-                return CommandStatus.MountNotStopped
-
             location = _parse_location(status)
             coords = SkyCoord(
                 ra=ra_deg * u.deg,

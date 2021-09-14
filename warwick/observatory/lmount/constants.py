@@ -32,7 +32,6 @@ class CommandStatus:
     MountControlNotRunning = 9
     MountNotInitialized = 10
     MountNotHomed = 11
-    MountNotStopped = 12
     MountNotDisabled = 14
 
     OutsideHALimits = 20
@@ -48,7 +47,6 @@ class CommandStatus:
         9: 'error: PWI4 software is not running',
         10: 'error: mount has not been initialized',
         11: 'error: mount has not been homed',
-        12: 'error: mount is not stopped',
         14: 'error: mount has already been initialized',
 
         20: 'error: requested coordinates outside HA limits',
