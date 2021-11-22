@@ -36,7 +36,7 @@ SOFTWARE_VERSION = "UNKNOWN"
 
 def _parse_mountstate(status):
     """Parse a MountState value from the PWI status dictionary"""
-    if status['mount.is_connected'] != 'true':
+    if status is None or status['mount.is_connected'] != 'true':
         return MountState.Disabled
 
     # Simplify the external API we expose by also treating unpowered axes as disabled
