@@ -12,8 +12,13 @@
   "park_positions": {
     "stow": {
       "desc": "general purpose park position",
-      "alt": 35,
-      "az": 180
+      "alt": 50,
+      "az": 0
+    },
+    "stow": {
+      "desc": "zenith",
+      "alt": 90,
+      "az": 0
     }
   }
 }

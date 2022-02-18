@@ -1,5 +1,5 @@
 Name:      clasp-lmount-server
-Version:   20211122
+Version:   20220218
 Release:   0
 Url:       https://github.com/warwick-one-metre/lmountd
 Summary:   Mount daemon for the CLASP telescope.
