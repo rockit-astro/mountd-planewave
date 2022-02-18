@@ -353,6 +353,8 @@ class MountDaemon:
                 log.error(self._config.log_name, 'Failed to disable motor power')
                 return CommandStatus.Failed
 
+            time.sleep(1)
+
             if self._request_with_status('mount/disconnect') is None:
                 log.error(self._config.log_name, 'Failed to disconnect from mount')
                 return CommandStatus.Failed
