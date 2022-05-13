@@ -133,6 +133,10 @@ class MountDaemon:
 
             start = Time.now()
             while True:
+                # Note: it can take a few milliseconds before the slew begins
+                # Wait an interval period so we don't exit too early
+                self._pointing_condition.wait(self._config.slew_poll_interval)
+
                 if self._force_stopped:
                     break
 
@@ -140,8 +144,6 @@ class MountDaemon:
                 state = _parse_mountstate(status)
                 if state != MountState.Slewing or (Time.now() - start).to_value(u.s) > self._config.slew_timeout:
                     break
-
-                self._pointing_condition.wait(self._config.slew_poll_interval)
 
         if self._force_stopped:
             log.error(self._config.log_name, 'Pointing failed: aborted')
