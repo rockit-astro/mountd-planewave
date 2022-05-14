@@ -39,9 +39,9 @@ def _parse_mountstate(status):
     if status is None or status['mount.is_connected'] != 'true':
         return MountState.Disabled
 
-    # Simplify the external API we expose by also treating unpowered axes as disabled
+    # Simplify the external API we expose by treating unpowered axes as parked
     if status['mount.axis0.is_enabled'] != 'true' or status['mount.axis1.is_enabled'] != 'true':
-        return MountState.Disabled
+        return MountState.Parked
 
     if status['mount.is_slewing'] == 'true':
         return MountState.Slewing
@@ -121,6 +121,20 @@ class MountDaemon:
                 dec, self._dec_negative_limit, self._dec_positive_limit))
             return CommandStatus.OutsideDecLimits
         return CommandStatus.Succeeded
+
+    def _set_axis_power(self, enabled):
+        """
+        Send a mount/(enable|disable) command.
+        Returns True on success or logs and returns False on error
+        """
+        command = 'enable' if enabled else 'disable'
+        if self._request_with_status('mount/' + command, axis=-1) is None:
+            log.error(self._config.log_name, 'Failed to ' + command + ' motor power')
+            return False
+
+        # Wait momentarily for the state to change
+        time.sleep(1)
+        return True
 
     def _point(self, command, expected_state, **kwargs):
         """
@@ -209,7 +223,7 @@ class MountDaemon:
                 'axes_homed': self._axes_homed
             })
 
-            if state >= MountState.Stopped:
+            if state >= MountState.Parked:
                 pointing = SkyCoord(
                     ra=status['mount.ra_j2000_hours'],
                     dec=status['mount.dec_j2000_degs'],
@@ -248,6 +262,9 @@ class MountDaemon:
             state = _parse_mountstate(status)
             if state == MountState.Disabled:
                 return CommandStatus.MountNotInitialized
+
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
 
             log.info(self._config.log_name, 'Homing axes')
             try:
@@ -351,11 +368,8 @@ class MountDaemon:
             if state == MountState.Disabled:
                 return CommandStatus.MountNotInitialized
 
-            if self._request_with_status('mount/disable', axis=-1) is None:
-                log.error(self._config.log_name, 'Failed to disable motor power')
+            if state != MountState.Parked and not self._set_axis_power(False):
                 return CommandStatus.Failed
-
-            time.sleep(1)
 
             if self._request_with_status('mount/disconnect') is None:
                 log.error(self._config.log_name, 'Failed to disconnect from mount')
@@ -400,6 +414,10 @@ class MountDaemon:
 
             # Check against telescope limits
             status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
             location = _parse_location(status)
             coords = SkyCoord(alt=alt_deg, az=az_deg, unit=u.deg, frame='altaz',
                               location=location, obstime=Time.now())
@@ -410,6 +428,36 @@ class MountDaemon:
 
             success = self._point('mount/goto_alt_az', MountState.Stopped, alt_degs=alt_deg, az_degs=az_deg)
             return CommandStatus.Succeeded if success else CommandStatus.Failed
+
+    @Pyro4.expose
+    def park(self, position):
+        """Moves the telescope to a named park position and disables axis power"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            if position not in self._config.park_positions:
+                return CommandStatus.UnknownParkPosition
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
+            park = self._config.park_positions[position]
+            if not self._point('mount/goto_alt_az', MountState.Stopped, alt_degs=park['alt'], az_degs=park['az']):
+                return CommandStatus.Failed
+
+            if not self._set_axis_power(False):
+                return CommandStatus.Failed
+
+            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def slew_hadec(self, ha_deg, dec_deg):
@@ -427,6 +475,10 @@ class MountDaemon:
             # Convert apparent HA, Dec to Alt, Az for pointing
             now = Time.now()
             status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
             location = _parse_location(status)
             coords = SkyCoord(
                 ra=Time(now, location=location).sidereal_time('apparent') - ha_deg * u.deg,
@@ -460,6 +512,10 @@ class MountDaemon:
             # Convert apparent RA, Dec to Alt, Az for pointing
             now = Time.now()
             status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
             location = _parse_location(status)
             coords = SkyCoord(
                 ra=ra_deg * u.deg,
@@ -490,6 +546,10 @@ class MountDaemon:
                 return CommandStatus.MountNotHomed
 
             status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
             location = _parse_location(status)
             coords = SkyCoord(
                 ra=ra_deg * u.deg,
@@ -522,6 +582,9 @@ class MountDaemon:
 
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
             location = _parse_location(status)
             now = Time(Time.now(), location=location)
 

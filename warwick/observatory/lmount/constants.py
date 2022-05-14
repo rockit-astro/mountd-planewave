@@ -33,6 +33,7 @@ class CommandStatus:
     MountNotInitialized = 10
     MountNotHomed = 11
     MountNotDisabled = 14
+    UnknownParkPosition = 15
 
     OutsideHALimits = 20
     OutsideDecLimits = 21
@@ -48,6 +49,7 @@ class CommandStatus:
         10: 'error: mount has not been initialized',
         11: 'error: mount has not been homed',
         14: 'error: mount has already been initialized',
+        15: 'error: unknown park position',
 
         20: 'error: requested coordinates outside HA limits',
         21: 'error: requested coordinates outside Dec limits',
@@ -68,20 +70,22 @@ class CommandStatus:
 
 class MountState:
     """Represents the current mount state"""
-    Disabled, Stopped, Slewing, Tracking = range(4)
+    Disabled, Parked, Stopped, Slewing, Tracking = range(5)
 
     _labels = {
         0: 'DISABLED',
-        1: 'STOPPED',
-        2: 'SLEWING',
-        3: 'TRACKING',
+        1: 'PARKED',
+        2: 'STOPPED',
+        3: 'SLEWING',
+        4: 'TRACKING',
     }
 
     _formats = {
         0: TFmt.Red + TFmt.Bold,
-        1: TFmt.Red + TFmt.Bold,
-        2: TFmt.Yellow + TFmt.Bold,
-        3: TFmt.Green + TFmt.Bold,
+        1: TFmt.Yellow + TFmt.Bold,
+        2: TFmt.Red + TFmt.Bold,
+        3: TFmt.Yellow + TFmt.Bold,
+        4: TFmt.Green + TFmt.Bold,
     }
 
     @classmethod

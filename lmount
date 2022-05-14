@@ -76,8 +76,7 @@ def park(config, args):
 
         ping_daemon(config)
         with config.daemon.connect(timeout=0) as daemon:
-            pos = config.park_positions.get(args[0])
-            return daemon.slew_altaz(pos['alt'], pos['az'])
+            return daemon.park(args[0])
 
     print('usage: {} park <position>'.format(SCRIPT_NAME))
     print()
