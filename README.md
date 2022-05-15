@@ -27,8 +27,8 @@ A configuration file is specified when launching the server, and the `lmount` fr
   "park_positions": {
     "stow": { # Positions that can be used with 'tel park'.
       "desc": "general purpose park position", # Description reported by 'tel park'.
-      "alt": 35, # Altitude in degrees.
-      "az": 180 # Azimuth in degrees.
+      "alt": 50, # Altitude in degrees.
+      "az": 0 # Azimuth in degrees.
     }
   }
 }
