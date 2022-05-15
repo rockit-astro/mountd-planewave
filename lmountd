@@ -596,7 +596,8 @@ class MountDaemon:
                     obstime=now)
 
                 # Check against telescope limits
-                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg, dec_delta_deg))
+                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg,
+                                                                                                         dec_delta_deg))
                 if valid_status != CommandStatus.Succeeded:
                     return valid_status
 
@@ -619,7 +620,8 @@ class MountDaemon:
                     frame='icrs').transform_to(AltAz(obstime=now, location=location))
 
                 # Check against telescope limits
-                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg, dec_delta_deg))
+                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg,
+                                                                                                         dec_delta_deg))
                 if valid_status != CommandStatus.Succeeded:
                     return valid_status
 
