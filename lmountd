@@ -288,8 +288,8 @@ class MountDaemon:
                         frame='altaz')
 
                     while True:
-                        self._pointing_condition.wait(self._config.slew_poll_interval)
-                        if self._force_stopped or (Time.now() - start).to_value(u.s) > self._config.slew_timeout:
+                        self._pointing_condition.wait(self._config.home_poll_interval)
+                        if self._force_stopped or (Time.now() - start).to_value(u.s) > self._config.home_timeout:
                             break
 
                         status = self._request_with_status('status')

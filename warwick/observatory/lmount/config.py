@@ -24,7 +24,8 @@ CONFIG_SCHEMA = {
     'additionalProperties': False,
     'required': [
         'daemon', 'log_name', 'control_machines', 'pwi_host', 'pwi_port', 'pwi_timeout',
-        'slew_timeout', 'slew_poll_interval', 'ha_soft_limits', 'dec_soft_limits', 'park_positions'
+        'slew_timeout', 'slew_poll_interval', 'home_timeout', 'home_poll_interval',
+        'ha_soft_limits', 'dec_soft_limits', 'park_positions'
     ],
     'properties': {
         'daemon': {
@@ -56,6 +57,14 @@ CONFIG_SCHEMA = {
             'minimum': 0
         },
         'slew_poll_interval': {
+            'type': 'number',
+            'minimum': 0
+        },
+        'home_timeout': {
+            'type': 'number',
+            'minimum': 0
+        },
+        'home_poll_interval': {
             'type': 'number',
             'minimum': 0
         },
@@ -127,6 +136,8 @@ class Config:
         self.pwi_timeout = config_json['pwi_timeout']
         self.slew_timeout = config_json['slew_timeout']
         self.slew_poll_interval = config_json['slew_poll_interval']
+        self.home_timeout = config_json['home_timeout']
+        self.home_poll_interval = config_json['home_poll_interval']
         self.ha_soft_limits = config_json['ha_soft_limits']
         self.dec_soft_limits = config_json['dec_soft_limits']
         self.park_positions = config_json['park_positions']

@@ -22,6 +22,8 @@ A configuration file is specified when launching the server, and the `lmount` fr
   "pwi_timeout": 0.5, # Communication timeout with the PWI server (in seconds).
   "slew_poll_interval": 0.5, # Interval to poll the mount for slew completion (in seconds)
   "slew_timeout": 60, # Maximum time to slew from any position to any other position (in seconds)
+  "home_poll_interval": 5, # Interval to poll the mount for homing completion (in seconds)
+  "home_timeout": 60, # Maximum time to find home position (in seconds)
   "ha_soft_limits": [-90, 90], # Allowed hour angle range in degrees
   "dec_soft_limits": [-45, 90], # Allowed declination range in degrees
   "park_positions": {
