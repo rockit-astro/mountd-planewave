@@ -13,12 +13,12 @@ Requires:  python3, python3-Pyro4, python3-warwick-observatory-common, python3-w
 %build
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}/etc/bash_completion.d
-%{__install} %{_sourcedir}/lmount %{buildroot}%{_bindir}
-%{__install} %{_sourcedir}/completion/lmount %{buildroot}/etc/bash_completion.d/lmount
+%{__install} %{_sourcedir}/tel %{buildroot}%{_bindir}
+%{__install} %{_sourcedir}/completion/tel %{buildroot}/etc/bash_completion.d
 
 %files
 %defattr(0755,root,root,-)
-%{_bindir}/lmount
-/etc/bash_completion.d/lmount
+%{_bindir}/tel
+/etc/bash_completion.d/tel
 
 %changelog

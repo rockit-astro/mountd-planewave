@@ -3,14 +3,14 @@
 `lmountd` interfaces with the PWI4 http api and exposes a
 coherent telescope control interface via Pyro.
 
-`lmount` is a commandline utility for controlling the telescope.
+`tel` is a commandline utility for controlling the telescope.
 
 See [Software Infrastructure](https://github.com/warwick-one-metre/docs/wiki/Software-Infrastructure) for an overview of the software architecture and instructions for developing and deploying the code.
 
 ### Configuration
 
 Configuration is read from json files that are installed by default to `/etc/lmountd`.
-A configuration file is specified when launching the server, and the `lmount` frontend will search this location when launched.
+A configuration file is specified when launching the server, and the `tel` frontend will search this location when launched.
 
 ```python
 {
@@ -43,7 +43,7 @@ The automated packaging scripts will push 3 RPM packages to the observatory pack
 | Package           | Description |
 | ----------------- | ------ |
 | clasp-lmount-server | Contains the `lmountd` server and configuration for the CLASP telescope. |
-| observatory-lmount-client | Contains the `lmount` commandline utility for controlling the telescope server. |
+| observatory-lmount-client | Contains the `tel` commandline utility for controlling the telescope server. |
 | python3-warwick-observatory-lmount | Contains the python module with shared code. |
 
 `clasp-lmount-server` and `observatory-lmount-client` should be installed on the `clasp-tcs` machine.
@@ -84,5 +84,5 @@ sudo systemctl start lmountd@<config>
 The server and client can be run directly from a git clone:
 ```
 ./lmountd onemetre.json
-LMOUNTD_CONFIG_PATH=./clasp.json ./lmount status
+LMOUNTD_CONFIG_PATH=./clasp.json ./tel status
 ```
