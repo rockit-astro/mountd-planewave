@@ -277,33 +277,20 @@ class MountDaemon:
                     log.error(self._config.log_name, 'Failed to issue home command')
                     return CommandStatus.Failed
 
-                # Instead wait until the position has converged
+                # Instead wait until both axes are stationary
                 with self._pointing_condition:
                     start = Time.now()
-                    status = self._request_with_status('status')
-                    last_coord = SkyCoord(
-                        alt=status['mount.altitude_degs'],
-                        az=status['mount.azimuth_degs'],
-                        unit=u.deg,
-                        frame='altaz')
-
                     while True:
                         self._pointing_condition.wait(self._config.home_poll_interval)
                         if self._force_stopped or (Time.now() - start).to_value(u.s) > self._config.home_timeout:
                             break
 
                         status = self._request_with_status('status')
-                        coord = SkyCoord(
-                            alt=status['mount.altitude_degs'],
-                            az=status['mount.azimuth_degs'],
-                            unit=u.deg,
-                            frame='altaz')
-
-                        if coord.separation(last_coord) < 0.1 * u.deg:
+                        ha_stationary = status['mount.axis0.setpoint_velocity_degs_per_sec'] == '0'
+                        dec_stationary = status['mount.axis1.setpoint_velocity_degs_per_sec'] == '0'
+                        if ha_stationary and dec_stationary:
                             self._axes_homed = True
                             break
-
-                        last_coord = coord
 
                     if not self._axes_homed:
                         self._request_with_status('mount/stop')
