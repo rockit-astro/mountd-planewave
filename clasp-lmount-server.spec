@@ -1,13 +1,13 @@
 Name:      clasp-lmount-server
-Version:   20220515
+Version:   20220816
 Release:   0
 Url:       https://github.com/warwick-one-metre/lmountd
 Summary:   Mount daemon for the CLASP telescope.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-astropy, python3-Pyro4, python3-requests
-Requires:  python3-warwick-observatory-common, python3-warwick-observatory-lmount, %{?systemd_requires}
+Requires:  python3 python3-astropy python3-Pyro4 python3-requests
+Requires:  python3-warwick-observatory-common python3-warwick-observatory-lmount
 Requires:  pwi4
 
 %description

@@ -630,6 +630,31 @@ class MountDaemon:
                                       az_degs=coords.az.to_value(u.deg))
             return CommandStatus.Succeeded if success else CommandStatus.Failed
 
+    @Pyro4.expose
+    def track_tle(self, line1, line2, line3):
+        """Tracks a TLE
+           WARNING: Telescope limits are not enforced: it is up to the caller to ensure we don't point at the floor!
+        """
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.MountNotHomed
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
+            success = self._point('mount/follow_tle', MountState.Tracking,
+                                  line1=line1, line2=line2, line3=line3)
+
+            return CommandStatus.Succeeded if success else CommandStatus.Failed
+
     # pylint: disable=no-self-use
     @Pyro4.expose
     def ping(self):
