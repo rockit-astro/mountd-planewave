@@ -87,7 +87,7 @@ class MountDaemon:
         Returns None if the command failed or a dictionary of the mount status
         """
         try:
-            url = 'http://{}:{}/{}'.format(self._config.pwi_host, self._config.pwi_port, command)
+            url = f'http://{self._config.pwi_host}:{self._config.pwi_port}/{command}'
             response = requests.get(url, timeout=self._config.pwi_timeout, params=kwargs)
             response.raise_for_status()
 
@@ -112,13 +112,13 @@ class MountDaemon:
         dec = icrs.dec
 
         if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-            log.error(self._config.log_name, log_failed_prefix + '; ha {} outside limit ({}, {})'.format(
-                ha, self._ha_negative_limit, self._ha_positive_limit))
+            log.error(self._config.log_name, log_failed_prefix + f'; ha {ha} outside limit ' +
+                      f'({self._ha_negative_limit}, {self._ha_positive_limit})')
             return CommandStatus.OutsideHALimits
 
         if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
-            log.error(self._config.log_name, log_failed_prefix + '; dec {} outside limit ({}, {})'.format(
-                dec, self._dec_negative_limit, self._dec_positive_limit))
+            log.error(self._config.log_name, log_failed_prefix + f'; dec {dec} outside limit ' +
+                      f'({self._dec_negative_limit}, {self._dec_positive_limit})')
             return CommandStatus.OutsideDecLimits
         return CommandStatus.Succeeded
 
@@ -171,8 +171,8 @@ class MountDaemon:
         if state == MountState.Slewing:
             log.error(self._config.log_name, 'Pointing failed: timed out')
         else:
-            log.error(self._config.log_name, 'Pointing failed: completed with {} instead of {}'.format(
-                MountState.label(state), MountState.label(expected_state)))
+            log.error(self._config.log_name, f'Pointing failed: completed with {MountState.label(state)} instead of ' +
+                      MountState.label(expected_state))
 
         return False
 
@@ -409,7 +409,7 @@ class MountDaemon:
             coords = SkyCoord(alt=alt_deg, az=az_deg, unit=u.deg, frame='altaz',
                               location=location, obstime=Time.now())
 
-            valid_status = self._validate_pointing(coords, 'failed to move to alt {} az {}'.format(alt_deg, az_deg))
+            valid_status = self._validate_pointing(coords, f'failed to move to alt {alt_deg} az {az_deg}')
             if valid_status != CommandStatus.Succeeded:
                 return valid_status
 
@@ -474,7 +474,7 @@ class MountDaemon:
                 obstime=now).transform_to(AltAz(obstime=now, location=location))
 
             # Check against telescope limits
-            valid_status = self._validate_pointing(coords, 'failed to move to ha {} dec {}'.format(ha_deg, dec_deg))
+            valid_status = self._validate_pointing(coords, f'failed to move to ha {ha_deg} dec {dec_deg}')
             if valid_status != CommandStatus.Succeeded:
                 return valid_status
 
@@ -510,7 +510,7 @@ class MountDaemon:
                 frame='icrs').transform_to(AltAz(obstime=now, location=location))
 
             # Check against telescope limits
-            valid_status = self._validate_pointing(coords, 'failed to move to ra {} dec {}'.format(ra_deg, dec_deg))
+            valid_status = self._validate_pointing(coords, f'failed to move to ra {ra_deg} dec {dec_deg}')
             if valid_status != CommandStatus.Succeeded:
                 return valid_status
 
@@ -545,7 +545,7 @@ class MountDaemon:
                 obstime=Time(Time.now(), location=location))
 
             # Check against telescope limits
-            valid_status = self._validate_pointing(coords, 'failed to move to ra {} dec {}'.format(ra_deg, dec_deg))
+            valid_status = self._validate_pointing(coords, f'failed to move to ra {ra_deg} dec {dec_deg}')
             if valid_status != CommandStatus.Succeeded:
                 return valid_status
 
@@ -583,8 +583,8 @@ class MountDaemon:
                     obstime=now)
 
                 # Check against telescope limits
-                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg,
-                                                                                                         dec_delta_deg))
+                valid_status = self._validate_pointing(coords,
+                                                       f'failed to offset by ra {ra_delta_deg} dec {dec_delta_deg}')
                 if valid_status != CommandStatus.Succeeded:
                     return valid_status
 
@@ -607,8 +607,8 @@ class MountDaemon:
                     frame='icrs').transform_to(AltAz(obstime=now, location=location))
 
                 # Check against telescope limits
-                valid_status = self._validate_pointing(coords, 'failed to offset by ra {} dec {}'.format(ra_delta_deg,
-                                                                                                         dec_delta_deg))
+                valid_status = self._validate_pointing(coords,
+                                                       f'failed to offset by ra {ra_delta_deg} dec {dec_delta_deg}')
                 if valid_status != CommandStatus.Succeeded:
                     return valid_status
 
@@ -665,12 +665,10 @@ class MountDaemon:
 
             return CommandStatus.Failed if status is None else CommandStatus.Succeeded
 
-    # pylint: disable=no-self-use
     @Pyro4.expose
     def ping(self):
         """Returns immediately with a success status"""
         return CommandStatus.Succeeded
-    # pylint: enable=no-self-use
 
 
 if __name__ == '__main__':
