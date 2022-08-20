@@ -642,6 +642,29 @@ class MountDaemon:
 
             return CommandStatus.Succeeded if success else CommandStatus.Failed
 
+    @Pyro4.expose
+    def add_pointing_model_point(self, ra_j2000_deg, dec_j2000_deg):
+        """
+        Add a point to PWI4's pointing model, mapping the current
+        pointing direction to the specified J2000 coordinates.
+        """
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            status = self._request_with_status('status')
+            if _parse_mountstate(status) != MountState.Tracking:
+                return CommandStatus.Failed
+
+            status = self._request_with_status('mount/model/add_point',
+                                               ra_j2000_hours=ra_j2000_deg / 15,
+                                               dec_j2000_degs=dec_j2000_deg)
+
+            return CommandStatus.Failed if status is None else CommandStatus.Succeeded
+
     # pylint: disable=no-self-use
     @Pyro4.expose
     def ping(self):
