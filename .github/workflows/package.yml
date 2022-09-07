@@ -33,6 +33,7 @@ jobs:
         run: |
           # Set the spec Revision field to <latest in repo> + 1
           rocky-packages/set-spec-release.sh clasp-lmount-server.spec
+          rocky-packages/set-spec-release.sh superwasp-lmount-server.spec
           rocky-packages/set-spec-release.sh observatory-lmount-client.spec
           rocky-packages/set-spec-release.sh python3-warwick-observatory-lmount.spec
       - name: Package RPMs

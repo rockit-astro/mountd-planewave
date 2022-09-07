@@ -40,13 +40,15 @@ A configuration file is specified when launching the server, and the `tel` front
 
 The automated packaging scripts will push 3 RPM packages to the observatory package repository:
 
-| Package           | Description |
-| ----------------- | ------ |
-| clasp-lmount-server | Contains the `lmountd` server and configuration for the CLASP telescope. |
-| observatory-lmount-client | Contains the `tel` commandline utility for controlling the telescope server. |
-| python3-warwick-observatory-lmount | Contains the python module with shared code. |
+| Package                            | Description                                                                  |
+|------------------------------------|------------------------------------------------------------------------------|
+| clasp-lmount-server                | Contains the `lmountd` server and configuration for the CLASP telescope.     |
+| superwasp-lmount-server            | Contains the `lmountd` server and configuration for the SuperWASP telescope. |
+| observatory-lmount-client          | Contains the `tel` commandline utility for controlling the telescope server. |
+| python3-warwick-observatory-lmount | Contains the python module with shared code.                                 |
 
 `clasp-lmount-server` and `observatory-lmount-client` should be installed on the `clasp-tcs` machine.
+`superwasp-lmount-server` and `observatory-lmount-client` should be installed on the `wasp-tcs` machine.
 
 After installing packages, the systemd service should be enabled:
 

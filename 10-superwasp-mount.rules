@@ -1,0 +1,7 @@
+ATTRS{idVendor}=="1cbe", ATTRS{idProduct}=="0267", GOTO="mount"
+SUBSYSTEMS=="usb", GOTO="end"
+
+LABEL="mount"
+ATTRS{bInterfaceNumber}=="00", SYMLINK+="mount-ra", MODE="0666"
+ATTRS{bInterfaceNumber}=="02", SYMLINK+="mount-dec", MODE="0666"
+LABEL="end"
