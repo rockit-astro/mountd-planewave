@@ -1,8 +1,8 @@
-Name:      clasp-lmount-server
-Version:   20220820
+Name:      halfmetre-lmount-server
+Version:   20230203
 Release:   0
 Url:       https://github.com/warwick-one-metre/lmountd
-Summary:   Mount daemon for the CLASP telescope.
+Summary:   Mount daemon for the half metre telescope.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
@@ -21,7 +21,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/lmountd/
 %{__install} %{_sourcedir}/lmountd %{buildroot}%{_bindir}
 %{__install} %{_sourcedir}/lmountd@.service %{buildroot}%{_unitdir}
 %{__install} %{_sourcedir}/10-planewave-lmount.rules %{buildroot}%{_udevrulesdir}
-%{__install} %{_sourcedir}/clasp.json %{buildroot}%{_sysconfdir}/lmountd/
+%{__install} %{_sourcedir}/halfmetre.json %{buildroot}%{_sysconfdir}/lmountd/
 
 %files
 %defattr(0755,root,root,-)
@@ -29,6 +29,6 @@ mkdir -p %{buildroot}%{_sysconfdir}/lmountd/
 %defattr(0644,root,root,-)
 %{_unitdir}/lmountd@.service
 %{_udevrulesdir}/10-planewave-lmount.rules
-%{_sysconfdir}/lmountd/clasp.json
+%{_sysconfdir}/lmountd/halfmetre.json
 
 %changelog

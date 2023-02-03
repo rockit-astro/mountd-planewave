@@ -20,7 +20,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/lmountd/
 
 %{__install} %{_sourcedir}/lmountd %{buildroot}%{_bindir}
 %{__install} %{_sourcedir}/lmountd@.service %{buildroot}%{_unitdir}
-%{__install} %{_sourcedir}/10-superwasp-mount.rules %{buildroot}%{_udevrulesdir}
+%{__install} %{_sourcedir}/10-planewave-lmount.rules %{buildroot}%{_udevrulesdir}
 %{__install} %{_sourcedir}/superwasp.json %{buildroot}%{_sysconfdir}/lmountd/
 
 %files
@@ -28,7 +28,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/lmountd/
 %{_bindir}/lmountd
 %defattr(0644,root,root,-)
 %{_unitdir}/lmountd@.service
-%{_udevrulesdir}/10-superwasp-mount.rules
+%{_udevrulesdir}/10-planewave-lmount.rules
 %{_sysconfdir}/lmountd/superwasp.json
 
 %changelog

@@ -13,6 +13,7 @@ all:
 	awk '{sub("SOFTWARE_VERSION = .*$$","SOFTWARE_VERSION = \"$(VERSION) ($(GIT_VERSION))\""); print $0}' lmountd.bak > lmountd
 	${RPMBUILD} -ba clasp-lmount-server.spec
 	${RPMBUILD} -ba superwasp-lmount-server.spec
+	${RPMBUILD} -ba halfmetre-lmount-server.spec
 	${RPMBUILD} -ba observatory-lmount-client.spec
 	${RPMBUILD} -ba python3-warwick-observatory-lmount.spec
 	mv build/noarch/*.rpm .

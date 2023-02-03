@@ -17,7 +17,7 @@ jobs:
           dnf -y install 'dnf-command(config-manager)'
           dnf -y config-manager --set-enabled crb
           dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
-          yum -y install git rpm-build rpm-sign rsync make python3-rpm-macros python3-devel
+          yum -y install git rpm-build rpm-sign rsync make python3-rpm-macros python3-devel systemd-rpm-macros
 
       - name: Clone Repository
         uses: actions/checkout@v2
@@ -34,6 +34,7 @@ jobs:
           # Set the spec Revision field to <latest in repo> + 1
           rocky-packages/set-spec-release.sh clasp-lmount-server.spec
           rocky-packages/set-spec-release.sh superwasp-lmount-server.spec
+          rocky-packages/set-spec-release.sh halfmetre-lmount-server.spec
           rocky-packages/set-spec-release.sh observatory-lmount-client.spec
           rocky-packages/set-spec-release.sh python3-warwick-observatory-lmount.spec
       - name: Package RPMs
