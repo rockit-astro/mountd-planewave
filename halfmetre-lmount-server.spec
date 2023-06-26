@@ -1,5 +1,5 @@
 Name:      halfmetre-lmount-server
-Version:   20230203
+Version:   20230626
 Release:   0
 Url:       https://github.com/warwick-one-metre/lmountd
 Summary:   Mount daemon for the half metre telescope.

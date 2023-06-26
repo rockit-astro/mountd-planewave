@@ -12,6 +12,11 @@
   "ha_soft_limits": [-90, 90],
   "dec_soft_limits": [-45, 90],
   "park_positions": {
+    "stow": {
+      "desc": "general purpose park position",
+      "alt": 20,
+      "az": 270
+    },
     "zenith": {
       "desc": "zenith",
       "alt": 90,
