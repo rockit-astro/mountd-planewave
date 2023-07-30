@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 #
-# This file is part of lmountd.
+# This file is part of the Robotic Observatory Control Kit (rockit)
 #
-# lmountd is free software: you can redistribute it and/or modify
+# rockit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# lmountd is distributed in the hope that it will be useful,
+# rockit is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with lmountd.  If not, see <http://www.gnu.org/licenses/>.
+# along with rockit.  If not, see <http://www.gnu.org/licenses/>.
 
 """Daemon for controlling a Planewave L mount through its http interface via Pyro"""
 
@@ -26,12 +26,9 @@ import astropy.units as u
 import requests
 import Pyro4
 
-from warwick.observatory.common import log, TryLock
-from warwick.observatory.common.helpers import pyro_client_matches
-from warwick.observatory.lmount import CommandStatus, Config, MountState
-
-# Set automatically when generating RPM package
-SOFTWARE_VERSION = "UNKNOWN"
+from rockit.common import log, TryLock
+from rockit.common.helpers import pyro_client_matches
+from rockit.lmount import CommandStatus, Config, MountState
 
 
 def _parse_mountstate(status):
@@ -186,7 +183,6 @@ class MountDaemon:
                 'date': Time.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
                 'state': MountState.Disabled,
                 'state_label': MountState.label(MountState.Disabled),
-                'software_version': SOFTWARE_VERSION,
             }
 
         state = _parse_mountstate(status)
