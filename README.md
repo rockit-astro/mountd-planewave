@@ -12,9 +12,9 @@ A configuration file is specified when launching the server, and the `tel` front
 
 ```python
 {
-  "daemon": "clasp_telescope", # Run the server as this daemon. Daemon types are registered in `warwick.observatory.common.daemons`.
+  "daemon": "clasp_telescope", # Run the server as this daemon. Daemon types are registered in `rockit.common.daemons`.
   "log_name": "lmountd@clasp", # The name to use when writing messages to the observatory log.
-  "control_machines": ["CLASPTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `warwick.observatory.common.IP`.
+  "control_machines": ["CLASPTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `rockit.common.IP`.
   "pwi_host": "localhost", # Host name of the PWI4 server. This should generally stay as localhost.
   "pwi_port": 8220, # Port of the PWI server.
   "pwi_timeout": 0.5, # Communication timeout with the PWI server (in seconds).
