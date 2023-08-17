@@ -204,7 +204,6 @@ class MountDaemon:
             'date': date.strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
             'state': state,
             'state_label': MountState.label(state),
-            'software_version': SOFTWARE_VERSION,
             'pwi_version': status['pwi4.version'],
             'site_latitude': location.lat.to_value(u.deg),
             'site_longitude': location.lon.to_value(u.deg),
