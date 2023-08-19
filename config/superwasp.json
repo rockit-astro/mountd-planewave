@@ -12,6 +12,11 @@
   "ha_soft_limits": [-90, 90],
   "dec_soft_limits": [-45, 90],
   "park_positions": {
+    "stow": {
+      "desc": "stow",
+      "alt": 30,
+      "az": 10
+    },
     "zenith": {
       "desc": "zenith",
       "alt": 90,
