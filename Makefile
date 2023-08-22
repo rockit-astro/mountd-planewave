@@ -20,8 +20,8 @@ install:
 	@rm VERSION
 	@sudo cp lmountd tel /bin/
 	@sudo cp lmountd@.service /usr/lib/systemd/system/
-	@sudo cp completion/vaisala /etc/bash_completion.d/
-	@sudo cp 10-planewave-lmount.spec /usr/lib/udev/rules.d/
+	@sudo cp completion/tel /etc/bash_completion.d/
+	@sudo cp config/10-planewave-lmount.rules /usr/lib/udev/rules.d/
 	@sudo install -d /etc/lmountd
 	@echo ""
 	@echo "Installed server, client, and service files."
