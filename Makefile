@@ -7,8 +7,8 @@ RPMBUILD = rpmbuild --define "_topdir %(pwd)/build" \
 all:
 	mkdir -p build
 	date --utc +%Y%m%d%H%M%S > VERSION
-	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-lmount.spec
-	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-lmount.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-mount-planewave.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-mount-planewave.spec
 
 	mv build/noarch/*.rpm .
 	rm -rf build VERSION
@@ -16,7 +16,7 @@ all:
 install:
 	@date --utc +%Y%m%d%H%M%S > VERSION
 	@python3 -m build --outdir .
-	@sudo pip3 install rockit.lmount-$$(cat VERSION)-py3-none-any.whl
+	@sudo pip3 install rockit.mount.planewave-$$(cat VERSION)-py3-none-any.whl
 	@rm VERSION
 	@sudo cp lmountd tel /bin/
 	@sudo cp lmountd@.service /usr/lib/systemd/system/

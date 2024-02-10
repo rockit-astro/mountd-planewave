@@ -1,9 +1,9 @@
-Name:           python3-rockit-lmount
+Name:           python3-rockit-mount-planewave
 Version:        %{_version}
 Release:        1
 License:        GPL3
 Summary:        Common backend code for the L mount daemon.
-Url:            https://github.com/rockit-astro/lmountd
+Url:            https://github.com/rockit-astro/mountd-planewave
 BuildArch:      noarch
 BuildRequires:  python3-devel
 

@@ -28,7 +28,7 @@ import Pyro4
 
 from rockit.common import log, TryLock
 from rockit.common.helpers import pyro_client_matches
-from rockit.lmount import CommandStatus, Config, MountState
+from rockit.mount.planewave import CommandStatus, Config, MountState
 
 
 def _parse_mountstate(status):

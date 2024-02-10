@@ -1,13 +1,13 @@
 ## Planewave L mount daemon
 
-`lmountd` interfaces with the PWI4 http api and exposes a
+`planewave_mountd` interfaces with the PWI4 http api and exposes a
 coherent telescope control interface via Pyro.
 
 `tel` is a commandline utility for controlling the telescope.
 
 ### Configuration
 
-Configuration is read from json files that are installed by default to `/etc/lmountd`.
+Configuration is read from json files that are installed by default to `/etc/mountd`.
 A configuration file is specified when launching the server, and the `tel` frontend will search this location when launched.
 
 ```python
@@ -38,19 +38,19 @@ A configuration file is specified when launching the server, and the `tel` front
 
 The automated packaging scripts will push 3 RPM packages to the observatory package repository:
 
-| Package                      | Description                                                                  |
-|------------------------------|------------------------------------------------------------------------------|
-| rockit-lmount-server         | Contains the `lmountd` server and systemd service file.                      |
-| rockit-lmount-client         | Contains the `tel` commandline utility for controlling the telescope server. |
-| rockit-lmount-data-clasp     | Contains the json configuration for the CLASP telescope.                     |
-| rockit-lmount-data-halfmetre | Contains the json configuration for the half metre telescope.                |
-| rockit-lmount-data-superwasp | Contains the json configuration for the SuperWASP telescope.                 |
-| python3-rockit-lmount        | Contains the python module with shared code.                                 |
+| Package                               | Description                                                                  |
+|---------------------------------------|------------------------------------------------------------------------------|
+| rockit-mount-planewave-server         | Contains the `lmountd` server and systemd service file.                      |
+| rockit-mount-planewave-client         | Contains the `tel` commandline utility for controlling the telescope server. |
+| rockit-mount-planewave-data-clasp     | Contains the json configuration for the CLASP telescope.                     |
+| rockit-mount-planewave-data-halfmetre | Contains the json configuration for the half metre telescope.                |
+| rockit-mount-planewave-data-superwasp | Contains the json configuration for the SuperWASP telescope.                 |
+| python3-rockit-planewave-mount        | Contains the python module with shared code.                                 |
 
 After installing packages, the systemd service should be enabled:
 
 ```
-sudo systemctl enable --now lmountd@<config>
+sudo systemctl enable --now planewave_mountd@<config>
 ```
 
 where `config` is the name of the json file for the appropriate telescope.
@@ -73,13 +73,13 @@ sudo yum update
 
 The daemon should then be restarted to use the newly installed code:
 ```
-sudo systemctl restart lmountd@<config>
+sudo systemctl restart planewave_mountd@<config>
 ```
 
 ### Testing Locally
 
 The server and client can be run directly from a git clone:
 ```
-./lmountd config/clasp.json
-LMOUNTD_CONFIG_PATH=./config/clasp.json ./tel status
+./planewave_mountd config/clasp.json
+MOUNTD_CONFIG_PATH=./config/clasp.json ./tel status
 ```
