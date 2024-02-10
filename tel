@@ -71,17 +71,17 @@ def park(config, args):
     """Slews the telescope to a named park position"""
     if len(args) == 1:
         if args[0] not in config.park_positions:
-            print('error: unknown park position \'' + args[0] + '\'')
+            print(f'error: unknown park position \'{args[0]}\'')
             return -1
 
         ping_daemon(config)
         with config.daemon.connect(timeout=0) as daemon:
             return daemon.park(args[0])
 
-    print('usage: {} park <position>'.format(SCRIPT_NAME))
+    print(f'usage: {SCRIPT_NAME} park <position>')
     print()
-    for p in config.park_positions:
-        print('   {:6s}    {}'.format(p, config.park_positions[p]['desc']))
+    for name, info in config.park_positions.items():
+        print(f'   {name:6s}    {info["desc"]}')
     print()
     return -1
 
@@ -89,7 +89,7 @@ def park(config, args):
 def slew(config, args):
     """Slews the telescope to a specified J2000 RA,Dec position"""
     if len(args) != 2:
-        print('usage: {} slew <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        print(f'usage: {SCRIPT_NAME} slew <HH:MM:SS.S> <DD:MM:SS.S>')
         return -1
 
     try:
@@ -106,7 +106,7 @@ def slew(config, args):
 def horizon(config, args):
     """Slews the telescope to a specified Alt,Az position"""
     if len(args) != 2:
-        print('usage: {} horizon <DD:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        print(f'usage: {SCRIPT_NAME} horizon <DD:MM:SS.S> <DD:MM:SS.S>')
         return -1
 
     try:
@@ -123,19 +123,19 @@ def horizon(config, args):
 def offset(config, args):
     """Offsets the telescope by a specified delta RA,Dec"""
     if len(args) != 2:
-        print('usage: {} offset <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        print(f'usage: {SCRIPT_NAME} offset <HH:MM:SS.S> <DD:MM:SS.S>')
         return -1
 
     try:
         offset_ra = Angle(args[0], unit=u.hourangle)
     except ValueError:
-        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
+        print(f'error: failed to parse \'{args[0]}\' as a HH:MM:SS.S right ascension.')
         return -1
 
     try:
         offset_dec = Angle(args[1], unit=u.deg)
     except ValueError:
-        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        print(f'error: failed to parse \'{args[1]}\' as a DD:MM:SS.S declination.')
         return -1
 
     ping_daemon(config)
@@ -146,7 +146,7 @@ def offset(config, args):
 def track(config, args):
     """Slews the telescope to a specified J2000 RA,Dec position and begins tracking"""
     if len(args) != 2:
-        print('usage: {} track <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        print(f'usage: {SCRIPT_NAME} track <HH:MM:SS.S> <DD:MM:SS.S>')
         return -1
 
     try:
@@ -175,7 +175,7 @@ def status(config, _):
     if data is None:
         return 1
 
-    print('   Telescope is {}'.format(MountState.label(data['state'], formatting=True)))
+    print(f'   Telescope is {MountState.label(data["state"], formatting=True)}')
 
     # Telescope is disabled
     if data['state'] == MountState.Disabled:
@@ -200,15 +200,12 @@ def status(config, _):
         if dec_offset != 0:
             dec_offset_desc = ' with offset ' + TFmt.Bold + dec_offset.to_string(sep=':', precision=2) + TFmt.Clear
 
-        moon_desc = TFmt.Bold + '{:.0f}\u00B0'.format(data['moon_separation']) + TFmt.Clear
-        sun_desc = TFmt.Bold + '{:.0f}\u00B0'.format(data['sun_separation']) + TFmt.Clear
-
         print('   RA is ' + TFmt.Bold + ra_desc + TFmt.Clear + ra_offset_desc)
         print('   Dec is ' + TFmt.Bold + dec_desc + TFmt.Clear + dec_offset_desc)
-        print('   Altitude is ' + TFmt.Bold + alt_desc + TFmt.Clear)
-        print('   Azimuth is ' + TFmt.Bold + az_desc + TFmt.Clear)
-        print('   Moon separation is ' + moon_desc)
-        print('   Sun separation is ' + sun_desc)
+        print(f'   Altitude is {TFmt.Bold}{alt_desc}{TFmt.Clear}')
+        print(f'   Azimuth is {TFmt.Bold}{az_desc}{TFmt.Clear}')
+        print(f'   Moon separation is {TFmt.Bold}{data["moon_separation"]:.0f}\u00B0{TFmt.Clear}')
+        print(f'   Sun separation is {TFmt.Bold}{data["sun_separation"]:.0f}\u00B0{TFmt.Clear}')
     else:
         print('   Axes are ' + TFmt.Bold + TFmt.Red + 'NOT HOMED' + TFmt.Clear)
 
@@ -250,7 +247,7 @@ def ping_daemon(config):
 
 def print_usage():
     """Prints the utility help"""
-    print('usage: {} <command> [<args>]'.format(SCRIPT_NAME))
+    print(f'usage: {SCRIPT_NAME} <command> [<args>]')
     print()
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
