@@ -31,10 +31,20 @@ from rockit.common.helpers import pyro_client_matches
 from rockit.mount.planewave import CommandStatus, Config, MountState
 
 
-def _parse_mountstate(status):
+def _parse_mountstate(status, is_homing=False):
     """Parse a MountState value from the PWI status dictionary"""
     if status is None or status['mount.is_connected'] != 'true':
         return MountState.Disabled
+
+    # Work around is_slewing being false while homing
+    if is_homing:
+        ha_moving = status['mount.axis0.setpoint_velocity_degs_per_sec'] != '0'
+        dec_moving = status['mount.axis1.setpoint_velocity_degs_per_sec'] != '0'
+        if ha_moving or dec_moving:
+            return MountState.Homing
+
+    if status['mount.axis0.is_homed'] != 'true' or status['mount.axis1.is_homed'] != 'true':
+        return MountState.NotHomed
 
     # Simplify the external API we expose by treating unpowered axes as parked
     if status['mount.axis0.is_enabled'] != 'true' or status['mount.axis1.is_enabled'] != 'true':
@@ -61,11 +71,7 @@ class MountDaemon:
     """Daemon interface for talon subsystems"""
     def __init__(self, config):
         self._config = config
-
-        # PWI doesn't force the mount to be homed between powering on and operation.
-        # Force this requirement through the daemon instead.
-        self._axes_homed = False
-        self._axes_homing = False
+        self._is_homing = False
 
         self._ha_positive_limit = self._config.ha_soft_limits[1] * u.deg
         self._ha_negative_limit = self._config.ha_soft_limits[0] * u.deg
@@ -133,11 +139,20 @@ class MountDaemon:
         time.sleep(1)
         return True
 
-    def _point(self, command, expected_state, **kwargs):
+    def _point(self, command, expected_state, is_homing=False, **kwargs):
         """
         Send a mount/goto_* command and wait for slewing to complete.
         Returns True on success or logs and returns False on error
         """
+        if is_homing:
+            poll_interval = self._config.home_poll_interval
+            timeout = self._config.home_timeout
+            slewing_state = MountState.Homing
+        else:
+            poll_interval = self._config.slew_poll_interval
+            timeout = self._config.slew_timeout
+            slewing_state = MountState.Slewing
+
         with self._pointing_condition:
             if self._request_with_status(command, **kwargs) is None:
                 log.error(self._config.log_name, 'Pointing failed: failed to issue ' + command)
@@ -146,14 +161,14 @@ class MountDaemon:
             while True:
                 # Note: it can take a few milliseconds before the slew begins
                 # Wait an interval period so we don't exit too early
-                self._pointing_condition.wait(self._config.slew_poll_interval)
+                self._pointing_condition.wait(poll_interval)
 
                 if self._force_stopped:
                     break
 
                 status = self._request_with_status('status')
-                state = _parse_mountstate(status)
-                if state != MountState.Slewing or (Time.now() - start).to_value(u.s) > self._config.slew_timeout:
+                state = _parse_mountstate(status, is_homing)
+                if state != slewing_state or (Time.now() - start).to_value(u.s) > timeout:
                     break
 
         if self._force_stopped:
@@ -185,7 +200,7 @@ class MountDaemon:
                 'state_label': MountState.label(MountState.Disabled),
             }
 
-        state = _parse_mountstate(status)
+        state = _parse_mountstate(status, self._is_homing)
         location = _parse_location(status)
 
         # Prefer the mount timestamp if we have it - this was when the coordinates were calculated
@@ -194,10 +209,6 @@ class MountDaemon:
             timestamp = status['response.timestamp_utc']
         else:
             timestamp = status['mount.timestamp_utc']
-
-        # Work around PWI4 reporting mount.is_slewing=false when finding home
-        if self._axes_homing:
-            state = MountState.Slewing
 
         date = Time(Time.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f'), location=location)
         data = {
@@ -215,7 +226,6 @@ class MountDaemon:
 
             data.update({
                 'lst': lst.to_value(u.deg),
-                'axes_homed': self._axes_homed
             })
 
             if state >= MountState.Parked:
@@ -258,44 +268,27 @@ class MountDaemon:
             if state == MountState.Disabled:
                 return CommandStatus.MountNotInitialized
 
-            if state == MountState.Parked and not self._set_axis_power(True):
+            # Enable axes if needed
+            axes_powered = status['mount.axis0.is_enabled'] == 'true' and status['mount.axis1.is_enabled'] == 'true'
+            if not axes_powered and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
             log.info(self._config.log_name, 'Homing axes')
-            try:
-                self._axes_homed = False
-                self._axes_homing = True
 
-                # NOTE: this will return immediately because PWI4 reports
-                # mount.is_slewing=false while finding homes
-                if not self._point('mount/find_home', MountState.Stopped):
+            try:
+                self._is_homing = True
+                if not self._point('mount/find_home', MountState.Stopped, is_homing=True):
                     log.error(self._config.log_name, 'Failed to issue home command')
                     return CommandStatus.Failed
-
-                # Instead wait until both axes are stationary
-                with self._pointing_condition:
-                    start = Time.now()
-                    while True:
-                        self._pointing_condition.wait(self._config.home_poll_interval)
-                        if self._force_stopped or (Time.now() - start).to_value(u.s) > self._config.home_timeout:
-                            break
-
-                        status = self._request_with_status('status')
-                        ha_stationary = status['mount.axis0.setpoint_velocity_degs_per_sec'] == '0'
-                        dec_stationary = status['mount.axis1.setpoint_velocity_degs_per_sec'] == '0'
-                        if ha_stationary and dec_stationary:
-                            self._axes_homed = True
-                            break
-
-                    if not self._axes_homed:
-                        self._request_with_status('mount/stop')
-                        log.error(self._config.log_name, 'Homing failed')
-                        return CommandStatus.Failed
-
-                    log.info(self._config.log_name, 'Homing complete')
-                    return CommandStatus.Succeeded
             finally:
-                self._axes_homing = False
+                self._is_homing = False
+
+            # Restore previous power state
+            if not axes_powered and not self._set_axis_power(False):
+                return CommandStatus.Failed
+
+            log.info(self._config.log_name, 'Homing complete')
+            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def initialize(self):
@@ -315,18 +308,9 @@ class MountDaemon:
             if state != MountState.Disabled:
                 return CommandStatus.MountNotDisabled
 
-            # Simplify the model that we expose to other code by considering the
-            # mount to be disabled if motor power is disabled. This ensures that
-            # we can correctly keep track of whether we are homed or not.
             if self._request_with_status('mount/connect') is None:
                 log.error(self._config.log_name, 'Failed to connect to mount')
                 return CommandStatus.Failed
-
-            if self._request_with_status('mount/enable', axis=-1) is None:
-                log.error(self._config.log_name, 'Failed to enable motor power')
-                return CommandStatus.Failed
-
-            self._axes_homed = False
 
             # Wait a second for the mount to respond before double checking that things are how we expect
             time.sleep(1)
@@ -391,12 +375,11 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             # Check against telescope limits
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
@@ -421,14 +404,13 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             if position not in self._config.park_positions:
                 return CommandStatus.UnknownParkPosition
 
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
@@ -451,13 +433,12 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             # Convert apparent HA, Dec to Alt, Az for pointing
             now = Time.now()
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
@@ -488,13 +469,12 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             # Convert apparent RA, Dec to Alt, Az for pointing
             now = Time.now()
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
@@ -524,11 +504,10 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
@@ -559,11 +538,10 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
@@ -624,11 +602,10 @@ class MountDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if not self._axes_homed:
-                return CommandStatus.MountNotHomed
-
             status = self._request_with_status('status')
             state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
             if state == MountState.Parked and not self._set_axis_power(True):
                 return CommandStatus.Failed
 
