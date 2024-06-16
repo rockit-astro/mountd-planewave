@@ -176,38 +176,33 @@ def status(config, _):
         return 1
 
     print(f'   Telescope is {MountState.label(data["state"], formatting=True)}')
-
-    # Telescope is disabled
-    if data['state'] == MountState.Disabled:
+    if data['state'] in [MountState.Disabled, MountState.NotHomed, MountState.Homing]:
         return 0
 
-    if data['axes_homed']:
-        coords = SkyCoord(ra=data['ra'], dec=data['dec'], unit=u.deg)
-        ra_desc = coords.ra.to(u.hourangle).to_string(sep=':', precision=2)
-        dec_desc = coords.dec.to(u.deg).to_string(sep=':', precision=2)
+    coords = SkyCoord(ra=data['ra'], dec=data['dec'], unit=u.deg)
+    ra_desc = coords.ra.to(u.hourangle).to_string(sep=':', precision=2)
+    dec_desc = coords.dec.to(u.deg).to_string(sep=':', precision=2)
 
-        altaz = SkyCoord(alt=data['alt'], az=data['az'], unit=u.deg, frame='altaz')
-        alt_desc = altaz.alt.to(u.deg).to_string(sep=':', precision=2)
-        az_desc = altaz.az.to_string(sep=':', precision=2)
+    altaz = SkyCoord(alt=data['alt'], az=data['az'], unit=u.deg, frame='altaz')
+    alt_desc = altaz.alt.to(u.deg).to_string(sep=':', precision=2)
+    az_desc = altaz.az.to_string(sep=':', precision=2)
 
-        ra_offset_desc = ''
-        ra_offset = Angle(data['offset_ra'], unit=u.deg).to(u.hourangle)
-        if ra_offset != 0:
-            ra_offset_desc = f' with offset [b]{ra_offset.to_string(sep=":", precision=2)}[/b]'
+    ra_offset_desc = ''
+    ra_offset = Angle(data['offset_ra'], unit=u.deg).to(u.hourangle)
+    if ra_offset != 0:
+        ra_offset_desc = f' with offset [b]{ra_offset.to_string(sep=":", precision=2)}[/b]'
 
-        dec_offset_desc = ''
-        dec_offset = Angle(data['offset_dec'], unit=u.deg)
-        if dec_offset != 0:
-            dec_offset_desc = f' with offset [b]{dec_offset.to_string(sep=":", precision=2)}[/b]'
+    dec_offset_desc = ''
+    dec_offset = Angle(data['offset_dec'], unit=u.deg)
+    if dec_offset != 0:
+        dec_offset_desc = f' with offset [b]{dec_offset.to_string(sep=":", precision=2)}[/b]'
 
-        print(f'   RA is [b]{ra_desc}[/b]' + ra_offset_desc)
-        print(f'   Dec is [b]{dec_desc}[/b]' + dec_offset_desc)
-        print(f'   Altitude is [b]{alt_desc}[/b]')
-        print(f'   Azimuth is [b]{az_desc}[/b]')
-        print(f'   Moon separation is [b]{data["moon_separation"]:.0f}\u00B0[/b]')
-        print(f'   Sun separation is [b]{data["sun_separation"]:.0f}\u00B0[/b]')
-    else:
-        print('   Axes are [b][red]NOT HOMED[/red][/b]')
+    print(f'   RA is [b]{ra_desc}[/b]' + ra_offset_desc)
+    print(f'   Dec is [b]{dec_desc}[/b]' + dec_offset_desc)
+    print(f'   Altitude is [b]{alt_desc}[/b]')
+    print(f'   Azimuth is [b]{az_desc}[/b]')
+    print(f'   Moon separation is [b]{data["moon_separation"]:.0f}\u00B0[/b]')
+    print(f'   Sun separation is [b]{data["sun_separation"]:.0f}\u00B0[/b]')
 
     lst_desc = Angle(data['lst'], unit=u.deg).to(u.hourangle).to_string(sep=':', precision=2)
     print(f'   Local sidereal time is [b]{lst_desc}[/b]')

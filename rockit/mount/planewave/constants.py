@@ -68,22 +68,26 @@ class CommandStatus:
 
 class MountState:
     """Represents the current mount state"""
-    Disabled, Parked, Stopped, Slewing, Tracking = range(5)
+    Disabled, NotHomed, Parked, Stopped, Slewing, Tracking, Homing = range(7)
 
     _labels = {
         0: 'DISABLED',
-        1: 'PARKED',
-        2: 'STOPPED',
-        3: 'SLEWING',
-        4: 'TRACKING',
+        1: 'NOT HOMED',
+        2: 'PARKED',
+        3: 'STOPPED',
+        4: 'SLEWING',
+        5: 'TRACKING',
+        6: 'HOMING',
     }
 
     _colors = {
         0: 'red',
-        1: 'yellow',
-        2: 'red',
-        3: 'yellow',
-        4: 'green',
+        1: 'red',
+        2: 'yellow',
+        3: 'red',
+        4: 'yellow',
+        5: 'green',
+        6: 'yellow',
     }
 
     @classmethod
