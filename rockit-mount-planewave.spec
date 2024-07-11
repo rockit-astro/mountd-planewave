@@ -24,7 +24,7 @@ mkdir -p %{buildroot}%{_udevrulesdir}
 
 %{__install} %{_sourcedir}/config/clasp.json %{buildroot}%{_sysconfdir}/mountd/
 %{__install} %{_sourcedir}/config/halfmetre.json %{buildroot}%{_sysconfdir}/mountd/
-%{__install} %{_sourcedir}/config/superwasp.json %{buildroot}%{_sysconfdir}/mountd/
+%{__install} %{_sourcedir}/config/sting.json %{buildroot}%{_sysconfdir}/mountd/
 
 %package server
 Summary:  L mount server
@@ -68,13 +68,13 @@ Group:   Unspecified
 %defattr(0644,root,root,-)
 %{_sysconfdir}/mountd/halfmetre.json
 
-%package data-superwasp
-Summary: L mount configuration for the SuperWASP telescope
+%package data-sting
+Summary: L mount configuration for the STING telescope
 Group:   Unspecified
-%description data-superwasp
+%description data-sting
 
-%files data-superwasp
+%files data-sting
 %defattr(0644,root,root,-)
-%{_sysconfdir}/mountd/superwasp.json
+%{_sysconfdir}/mountd/sting.json
 
 %changelog

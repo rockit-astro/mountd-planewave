@@ -1,7 +1,7 @@
 {
-  "daemon": "superwasp_telescope",
-  "log_name": "lmountd@superwasp",
-  "control_machines": ["SWASPTCS"],
+  "daemon": "sting_telescope",
+  "log_name": "lmountd@sting",
+  "control_machines": ["STINGTCS"],
   "pwi_host": "localhost",
   "pwi_port": 8220,
   "pwi_timeout": 0.5,

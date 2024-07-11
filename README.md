@@ -44,7 +44,7 @@ The automated packaging scripts will push 3 RPM packages to the observatory pack
 | rockit-mount-planewave-client         | Contains the `tel` commandline utility for controlling the telescope server. |
 | rockit-mount-planewave-data-clasp     | Contains the json configuration for the CLASP telescope.                     |
 | rockit-mount-planewave-data-halfmetre | Contains the json configuration for the half metre telescope.                |
-| rockit-mount-planewave-data-superwasp | Contains the json configuration for the SuperWASP telescope.                 |
+| rockit-mount-planewave-data-sting     | Contains the json configuration for the STING telescope.                     |
 | python3-rockit-planewave-mount        | Contains the python module with shared code.                                 |
 
 After installing packages, the systemd service should be enabled:
