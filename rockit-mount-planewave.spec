@@ -25,6 +25,7 @@ mkdir -p %{buildroot}%{_udevrulesdir}
 %{__install} %{_sourcedir}/config/clasp.json %{buildroot}%{_sysconfdir}/mountd/
 %{__install} %{_sourcedir}/config/halfmetre.json %{buildroot}%{_sysconfdir}/mountd/
 %{__install} %{_sourcedir}/config/sting.json %{buildroot}%{_sysconfdir}/mountd/
+%{__install} %{_sourcedir}/config/portable.json %{buildroot}%{_sysconfdir}/mountd/
 
 %package server
 Summary:  L mount server
@@ -76,5 +77,14 @@ Group:   Unspecified
 %files data-sting
 %defattr(0644,root,root,-)
 %{_sysconfdir}/mountd/sting.json
+
+%package data-portable
+Summary: L mount configuration for the portable telescope
+Group:   Unspecified
+%description data-portable
+
+%files data-portable
+%defattr(0644,root,root,-)
+%{_sysconfdir}/mountd/portable.json
 
 %changelog
