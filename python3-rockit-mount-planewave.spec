@@ -1,6 +1,6 @@
 Name:           python3-rockit-mount-planewave
 Version:        %{_version}
-Release:        1
+Release:        1%{dist}
 License:        GPL3
 Summary:        Common backend code for the L mount daemon.
 Url:            https://github.com/rockit-astro/mountd-planewave

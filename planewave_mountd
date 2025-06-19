@@ -20,7 +20,7 @@
 import argparse
 import threading
 import time
-from astropy.coordinates import AltAz, FK5, ICRS, SkyCoord, EarthLocation, get_moon, get_sun
+from astropy.coordinates import AltAz, FK5, ICRS, SkyCoord, EarthLocation, get_body
 from astropy.time import Time
 import astropy.units as u
 import requests
@@ -247,8 +247,8 @@ class MountDaemon:
                     'alt': u.Quantity(status['mount.altitude_degs'], unit=u.deg).to_value(u.deg),
                     'az': u.Quantity(status['mount.azimuth_degs'], unit=u.deg).to_value(u.deg),
 
-                    'moon_separation': get_moon(date).separation(pointing).to_value(u.deg),
-                    'sun_separation': get_sun(date).separation(pointing).to_value(u.deg),
+                    'moon_separation': get_body('moon', date).separation(pointing).to_value(u.deg),
+                    'sun_separation': get_body('sun', date).separation(pointing).to_value(u.deg),
                 })
 
         return data

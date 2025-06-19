@@ -1,6 +1,6 @@
 Name:      rockit-mount-planewave
 Version:   %{_version}
-Release:   1
+Release:   1%{dist}
 Summary:   Planewave L mount control
 Url:       https://github.com/rockit-astro/mountd-planewave
 License:   GPL-3.0
