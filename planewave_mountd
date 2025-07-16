@@ -615,6 +615,34 @@ class MountDaemon:
             return CommandStatus.Succeeded if success else CommandStatus.Failed
 
     @Pyro4.expose
+    def track_radec_path(self, path):
+        """Tracks smoothly between a series of (datetime, ra_j2000, dec_j2000) vertices
+           WARNING: Telescope limits are not enforced: it is up to the caller to ensure we don't point at the floor!
+        """
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            status = self._request_with_status('status')
+            state = _parse_mountstate(status)
+            if state == MountState.NotHomed:
+                return CommandStatus.MountNotHomed
+            if state == MountState.Parked and not self._set_axis_power(True):
+                return CommandStatus.Failed
+
+            self._request_with_status('/mount/radecpath/new')
+            for utc, ra_j2000_deg, dec_j2000_deg in path:
+                self._request_with_status('/mount/radecpath/add_point',
+                                          jd=Time(utc).jd,
+                                          ra_j2000_hours=ra_j2000_deg / 15,
+                                          dec_j2000_degs=dec_j2000_deg)
+            self._request_with_status('/mount/radecpath/apply')
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
     def add_pointing_model_point(self, ra_j2000_deg, dec_j2000_deg):
         """
         Add a point to PWI4's pointing model, mapping the current
